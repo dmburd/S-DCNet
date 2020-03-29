@@ -129,13 +129,13 @@ tensorboard --logdir run_<date>_<time>
 You will get an output like this for part_A:
 ```
 Evaluating on the (whole) train data and on the test data (in ./ShanghaiTech/part_A)
-Metrics on the (whole) train data: MAE: 12.54, MSE: 44.31
+Metrics on the (whole) train data: MAE: 10.78, MSE: 26.11
 Metrics on the test data:          MAE: 64.59, MSE: 107.49
 ```
 or like this for part_B:
 ```
 Evaluating on the (whole) train data and on the test data (in ./ShanghaiTech/part_B)
-Metrics on the (whole) train data: MAE: 1.98, MSE: 5.33
+Metrics on the (whole) train data: MAE: 2.17,  MSE: 7.28
 Metrics on the test data:          MAE: 10.35, MSE: 18.75
 ```
 The error values shown above were obtained after training on Google Colab, so the resources and training time were quite limited. The error values are significantly higher than that reported in the [original paper](https://arxiv.org/abs/1908.06473) (MAE = 58.3, MSE = 95.0 for part_A test set; MAE = 6.7, MSE = 10.7 for part_B test set).
