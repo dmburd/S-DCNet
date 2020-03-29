@@ -17,6 +17,7 @@ import time
 from tqdm import tqdm
 
 import skimage
+import skimage.io
 from PIL import Image
 import numpy as np
 import scipy.io
@@ -266,16 +267,14 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, args_dict):
             one_head_gaus_subset = one_head_gaussian[up_g:down_g,
                                                      left_g:right_g]
             dmap[up:down, left:right] += \
-                one_head_gaus_subset / np.sum(one_head_gaus_subset)
+                one_head_gaus_subset / np.sum(one_head_gaussian)
             # seems that xhp uses division by np.sum(one_head_gaussian) ^ here
             # instead of np.sum(one_head_gaus_subset)!
 
         basename2dmap_dict[bn] = dmap
         #print(np.sum(dmap), points.shape[0])
         integral_eq_annot_num = (int(round(np.sum(dmap))) == points.shape[0])
-        assert integral_eq_annot_num, \
-            "Integral over the density map != the annotated " \
-            "total number of people"
+        #assert integral_eq_annot_num
         # ^ Integral (sum) over the density map must be equal
         # to the annotated number of people
         # if dmap is normalized by np.sum(one_head_gaus_subset).
@@ -344,7 +343,7 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, args_dict):
 
     abs_path = tempfile.mkdtemp(
         suffix=None,
-        prefix='cmp_imgs_part_%s_test_' % args_dict['part'],
+        prefix='cmp_dmaps_part_%s_test_' % args_dict['part'],
         dir=os.getcwd())
 
     for dm1, (k2, dm2) in zip(my_dmaps_dict.values(), xhp_dmaps_dict.items()):
