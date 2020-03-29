@@ -22,7 +22,7 @@ import train
 
 def update_parser_for_arguments(parser_from_train):
     """
-    Add one argument to the passed ArgumentParser() object 
+    Add a few arguments to the passed ArgumentParser() object 
     and return the modified object.
     """
     parser_from_train.add_argument(
@@ -31,6 +31,12 @@ def update_parser_for_arguments(parser_from_train):
         default=None,
         help="path (required) to the checkpoint to be evaluated"
              "(default: None)")
+
+    parser_from_train.add_argument(
+        '--visualize', metavar='{yes|no}',
+        type=train.str2bool,
+        default=False,
+        help="visualize the predictions on a test set (default: no)")
 
     return parser_from_train
 
@@ -118,7 +124,7 @@ def main(args_dict):
 
     args_dict.update(loaded_struct['args_dict_copy'])
     args_dict.update(train_val_split=1.0)
-    # ^ place all of the train data to the train_loader below
+    # ^ associate all of the train data with the train_loader below
     #   (do not split the train data into train + validation)
     train_loader, val_loader, test_loader = \
         train.get_dataloaders(args_dict, (1, 0, 1))
@@ -141,7 +147,7 @@ def main(args_dict):
     print()
     datadir = pjn(args_dict['dataset_rootdir'], 'part_%s' % args_dict['part'])
     print("  Evaluating on the (whole) train data and on the test data "
-          "(in %s)" % datadir)
+          "(in '%s')" % datadir)
 
     mae_train, mse_train = trainer.validate(train_loader)
     print("  Metrics on the (whole) train data: MAE: %.2f, MSE: %.2f"
@@ -151,10 +157,11 @@ def main(args_dict):
     print("  Metrics on the test data:          MAE: %.2f, MSE: %.2f"
           % (mae_test, mse_test))
 
-    visualize_predictions(
-        model,
-        test_loader,
-        'visualized_part_%s_predictions' % args_dict['part'])
+    if args_dict['visualize']:
+        visualize_predictions(
+            model,
+            test_loader,
+            'visualized_part_%s_test_set_predictions' % args_dict['part'])
 
 
 if __name__ == "__main__":
