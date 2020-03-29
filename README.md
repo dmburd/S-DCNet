@@ -97,26 +97,7 @@ NOTE: training requires availability of cuda.
     --num-intervals 22 
 ```
 A typical command line for training on ShanghaiTech part_B is shown in `train.sh`.
-The logs and checkpoints generated during training are placed to a folder named like `run_<date>_<time>`. Directory structure looks like this:
-```
-./
-└── run_2020-03-25_15-05-37/
-    ├── checkpoints/
-    │   └── epoch_{10,20,30,...,1000}.pth
-    ├── error_values/
-    │   ├── MAE/
-    │   │   ├── train/
-    │   │   │   └── events.out.tfevents.*.*
-    │   │   └── val/
-    │   │       └── events.out.tfevents.*.*
-    │   └── MSE/
-    │       ├── train/
-    │       │   └── events.out.tfevents.*.*
-    │       └── val/
-    │           └── events.out.tfevents.*.*
-    └── events.out.tfevents.1585212425.218311ef39fe
-```
-Plots of MAE and MSE vs epoch number can be visualized by `tensorboard`:
+The logs and checkpoints generated during training are placed to a folder named like `run_<date>_<time>`. Plots of MAE and MSE vs epoch number can be visualized by `tensorboard`:
 ```
 tensorboard --logdir run_<date>_<time>
 ```
