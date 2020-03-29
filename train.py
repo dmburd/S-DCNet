@@ -232,6 +232,7 @@ def get_dataloaders(args_dict, train_val_test_mask):
         "boundaries), but the equality does not hold"
 
     rgb_mean_train = dtst.calc_rgb_mean_train(args_dict)
+    args_dict['rgb_mean_train'] = rgb_mean_train
 
     composed_transf_train = transforms.Compose([
         dtst.Normalize(rgb_mean_train),

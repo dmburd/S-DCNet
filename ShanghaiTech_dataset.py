@@ -11,7 +11,7 @@ import random
 from collections import OrderedDict
 import numpy as np
 import skimage
-import scipy
+import skimage.io
 from PIL import Image
 import matplotlib.pyplot as plt
 from datetime import datetime

@@ -143,11 +143,13 @@ class SDCNet(nn.Module):
 
         num_classes = len(label2count_list)
         self.count_interval_classif = fully_conv_classif(512, num_classes)
-        self.division_decider = fully_conv_classif(512, 1)
 
         ## upsampling (UNet-like)
         self.up_from_5_to_4 = Up(
             up_in_ch=512, up_out_ch=256, cat_in_ch=(256+512), cat_out_ch=512)
+
+        self.division_decider = fully_conv_classif(512, 1)
+
         self.up_from_4_to_3 = Up(
             up_in_ch=512, up_out_ch=256, cat_in_ch=(256+256), cat_out_ch=512)
 
