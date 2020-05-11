@@ -7,6 +7,8 @@ The official repository is https://github.com/xhp-hust-2018-2011/S-DCNet. Discus
 
 This repository contains the code for model training and evaluation on the published datasets ShanghaiTech Part_A and Part_B. Code for inference on standalone user-provided images is also present.
 
+**NOTE: this is a work in progress;**
+**checkout the commit 1a8900b in order to use the instructions below.**
 
 ## Environment
 Install required packages according to `requirements.txt`.
