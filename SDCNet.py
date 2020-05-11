@@ -40,12 +40,11 @@ def make_layers_vgg(cfg, in_ch=3, use_batch_norm=False):
 
 def fully_conv_classif(in_ch, num_classes):
     """
-    Used for counter classification part of the network
-    and for division decider.
+    Used for counter classification part of the network,
+    for division decider and for upsampler.
     """
     layers = [
         nn.AvgPool2d(kernel_size=2, stride=2),
-        nn.ReLU(inplace=True),
         nn.Conv2d(in_ch, in_ch, kernel_size=1),
         nn.ReLU(inplace=True),
         nn.Conv2d(in_ch, num_classes, kernel_size=1)
@@ -123,12 +122,26 @@ class Up(nn.Module):
         return self.conv2(x)
 
 
+def spatial_2x2_softmax(x):
+    out1 = F.unfold(x, kernel_size=2, stride=2)
+    out2 = F.softmax(out1, dim=1)
+    out3 = F.fold(out2, (x.shape[2], x.shape[3]), kernel_size=2, stride=2)
+    return out3
+    #UserWarning: ONNX export failed on ATen operator im2col 
+    # because torch.onnx.symbolic_opset11.im2col does not exist
+    # (when trying to run torch.onnx.export() )
+
+
 class SDCNet(nn.Module):
     """
-    The whole architecture of S-DCNet.
+    The whole architecture of S-DCNet / SS-DCNet.
     """
 
-    def __init__(self, label2count_list, load_pretr_weights_vgg=False):
+    def __init__(
+            self,
+            label2count_list,
+            supervised=False, # False for S-DCNet, True for SS-DCNet
+            load_pretr_weights_vgg=False):
         super(SDCNet, self).__init__()
 
         # vgg16, corresponds to cfg['D'] from torchvision/models/vgg.py
@@ -149,7 +162,10 @@ class SDCNet(nn.Module):
             up_in_ch=512, up_out_ch=256, cat_in_ch=(256+512), cat_out_ch=512)
 
         self.division_decider = fully_conv_classif(512, 1)
-
+        self.supervised = supervised
+        if self.supervised:
+            self.upsampler = fully_conv_classif(512, 1)
+        
         self.up_from_4_to_3 = Up(
             up_in_ch=512, up_out_ch=256, cat_in_ch=(256+256), cat_out_ch=512)
 
@@ -187,26 +203,41 @@ class SDCNet(nn.Module):
         F0 = conv5_feat
         cls0_logits = self.count_interval_classif(F0)
         cls0 = torch.argmax(cls0_logits, dim=1, keepdim=True)
-        C0 = apply_label2count(cls0, self.label2count_tensor)
+        C0 = apply_label2count(cls0, self.label2count_tensor.to(cls0.device))
 
         F1 = self.up_from_5_to_4(F0, conv4_feat)
         W1 = torch.sigmoid(self.division_decider(F1))
+        if self.supervised:
+            U1 = spatial_2x2_softmax(self.upsampler(F1))
+        else:
+            U1 = torch.ones_like(W1) / 4.0
+        
         cls1_logits = self.count_interval_classif(F1)
         cls1 = torch.argmax(cls1_logits, dim=1, keepdim=True)
-        C1 = apply_label2count(cls1, self.label2count_tensor)
+        C1 = apply_label2count(cls1, self.label2count_tensor.to(cls1.device))
 
         F2 = self.up_from_4_to_3(F1, conv3_feat)
         W2 = torch.sigmoid(self.division_decider(F2))
+        if self.supervised:
+            U2 = spatial_2x2_softmax(self.upsampler(F2))
+        else:
+            U2 = torch.ones_like(W2) / 4.0
+
         cls2_logits = self.count_interval_classif(F2)
         cls2 = torch.argmax(cls2_logits, dim=1, keepdim=True)
-        C2 = apply_label2count(cls2, self.label2count_tensor)
+        C2 = apply_label2count(cls2, self.label2count_tensor.to(cls2.device))
 
-        C0_redistr_2x2 = C0.repeat(1, 1, 2, 2) / 4.0
+        krn = torch.ones((C0.shape[0], 1, 2, 2)).to(C0.device)
+        # ^ kernel for conv_transpose2d
+        #   (used for calculate Kronecker product C0 [kron_prod] 1(2x2)
+        C0_redistr_2x2 = F.conv_transpose2d(C0, krn, stride=2) * U1
         DIV1 = (1.0 - W1) * C0_redistr_2x2 + W1 * C1
-        DIV1_redistr_2x2 = DIV1.repeat(1, 1, 2, 2) / 4.0
+        DIV1_redistr_2x2 = F.conv_transpose2d(DIV1, krn, stride=2) * U2
         DIV2 = (1.0 - W2) * DIV1_redistr_2x2 + W2 * C2
 
-        tuple_for_loss_calc = (cls0_logits, cls1_logits, cls2_logits, DIV2)
+        tuple_for_loss_calc = (
+            cls0_logits, cls1_logits, cls2_logits, DIV2,
+            U1, U2, W1, W2)
 
         return tuple_for_loss_calc
 
@@ -240,12 +271,15 @@ if __name__ == "__main__":
     batch_size = 1
     x = torch.randn(batch_size, 3, 64*1, 64*1, requires_grad=False)
 
-    sdcnet_instance = SDCNet(label2count_list, load_pretr_weights_vgg=True)
+    sdcnet_instance = SDCNet(
+        label2count_list,
+        supervised=True,
+        load_pretr_weights_vgg=True)
 
     out_list = sdcnet_instance(x)
     shapes_list = [str(one_featmap.shape) for one_featmap in out_list]
     print("\n".join(shapes_list))
-
+    e()
     # save in several possible ways
     torch.save(sdcnet_instance.state_dict(), "sdcnet_state_dict.pth")
 
@@ -253,7 +287,10 @@ if __name__ == "__main__":
     # ^ UserWarning: Couldn't retrieve source code for container of type Conv2d
     #   (torch.__version__ == '1.3.0')
 
-    torch.onnx.export(sdcnet_instance, x, "sdcnet.onnx", opset_version=11)
+    try:
+        torch.onnx.export(sdcnet_instance, x, "sdcnet.onnx", opset_version=11)
+    except:
+        print("  torch.onnx.export() call failed")
 
     traced_script_module = torch.jit.trace(sdcnet_instance, x)
     traced_script_module.save("traced_sdcnet_model.pt")

@@ -2,10 +2,10 @@
 
 train_A ()
 {
-    ./train.py \
+    python ./train.py \
         --dataset-rootdir ./ShanghaiTech \
         --part A \
-        --densmaps-gt-npz ./my_gener_gt_density_maps_npz_SAVED/density_maps_part_A_\*.npz \
+        --densmaps-gt-npz ./density_maps_part_A_\*.npz \
         --train-val-split 0.9 \
         --num-epochs 1000 \
         --num-intervals 22 
@@ -15,10 +15,10 @@ train_A ()
 
 train_B ()
 {
-    ./train.py \
+    python ./train.py \
         --dataset-rootdir ./ShanghaiTech \
         --part B \
-        --densmaps-gt-npz ./my_gener_gt_density_maps_npz_SAVED/density_maps_part_B_\*.npz \
+        --densmaps-gt-npz ./density_maps_part_B_\*.npz \
         --train-val-split 0.9 \
         --num-epochs 1000 \
         --num-intervals 7 

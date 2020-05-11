@@ -29,9 +29,9 @@ def apply_label2count(cls_labels_tensor, cls_label2count_tensor):
     """
     orig_shape = cls_labels_tensor.shape
     t = torch.index_select(
-        cls_label2count_tensor.cuda(),  # input
+        cls_label2count_tensor,  # input
         dim=0,
-        index=cls_labels_tensor.reshape((-1,)).cuda()
+        index=cls_labels_tensor.reshape((-1,))
     )
     # ^ DO NOT specify the 1st argument as input=<smth>!
     # TorchScript will throw `RuntimeError: Arguments for call are not valid`.

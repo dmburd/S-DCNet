@@ -383,14 +383,12 @@ class AddGtCountsLabels(object):
             apply_count2label(count_gt, self.interval_bounds)
             for count_gt in counts_gt]
 
-        div2_gt = counts_gt[-1]
-
         return {
             'image_bname': sample['image_bname'],
             'image': sample['image'],
             'dmap': sample['dmap'],
+            'counts_gt': counts_gt,
             'labels_gt': labels_gt,
-            'div2_gt': div2_gt,
         }
 
 

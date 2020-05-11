@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import sys
 import os
 import os.path
@@ -25,6 +23,7 @@ import ShanghaiTech_dataset as dtst
 
 from SDCNet import SDCNet
 from labels_counts_utils import make_label2count_list
+import loss
 
 
 def str2bool(v):
@@ -54,6 +53,20 @@ def parser_for_arguments():
         argparse.ArgumentParser() object.
     """
     parser = argparse.ArgumentParser(description='S-DCNet training script')
+
+    parser.add_argument(
+        '--disable-cuda', metavar='{yes|no}',
+        type=str2bool,
+        default=False,
+        help="'yes' to disable CUDA (default: no, CUDA enabled)")
+
+    parser.add_argument(
+        '--supervised', metavar='{yes|no}',
+        type=str2bool,
+        default=False,
+        help="'yes' for the Supervised S-DCNet (SS-DCNet), "
+             "'no' for the older version (unsupervised, ordinary S-DCNet) "
+             "(default: no)")
 
     parser.add_argument(
         '--dataset-rootdir', metavar='D',
@@ -197,9 +210,9 @@ def print_dbg_info_dataloader(loader):
     for i, sample in enumerate(loader):
         print("i = %d; image bname = %s; image shape = %s"
               % (i, sample['image_bname'], tuple(sample['image'].shape)))
-        print("labels_gt shapes = %s; div2_gt shape = %s"
-              % (str([tuple(l.shape) for l in sample['labels_gt']]),
-                 str(tuple(sample['div2_gt'].shape))))
+        print("counts_gt shapes = %s; labels_gt shapes = %s"
+              % (str(tuple(l.shape) for l in sample['labels_gt']),
+                 str(tuple(l.shape) for l in sample['counts_gt'])))
         print()
 
 
@@ -297,54 +310,14 @@ def get_dataloaders(args_dict, train_val_test_mask):
     return train_loader, val_loader, test_loader
 
 
-def loss_function(
-        gt_cls_labels_list,
-        pred_cls_logits_list,
-        gt_div2,
-        pred_div2):
-    """
-    The total loss is the sum of:
-    - cross-entropy losses for the classification labels for patches
-      of different sizes (64x64, 32x32 and 16x16);
-    - L1 loss for the count values for the smallest patches (16x16).
-
-    Args:
-        gt_cls_labels_list: list of tensors containing ground truth labels 
-            for patches.
-        pred_cls_logits_list: list of tensors containing predicted labels
-            for patches.
-        gt_div2: tensor containing ground truth count values for the 
-            smallest patches.
-        pred_div2: tensor containing predicted count values for the 
-            smallest patches.
-
-    Returns:
-        (cross_entropy_loss_terms, L1_loss, total_loss), where
-            the 1st element is the list of cross-entropy loss terms,
-            the 2nd element is the L1 loss for the `div2` count value,
-            the 3rd element is the total loss (one scalar).
-    """
-    cross_entropy_loss_terms = []
-    cross_entropy_loss_sum = 0
-
-    for gt_cls_i_labels, pred_cls_i_logits in zip(gt_cls_labels_list, pred_cls_logits_list):
-        t = nn.CrossEntropyLoss()(pred_cls_i_logits, gt_cls_i_labels.to('cuda'))
-        cross_entropy_loss_sum += t
-        cross_entropy_loss_terms.append(t)
-
-    L1_loss = nn.L1Loss()(pred_div2.squeeze(dim=1), gt_div2.to('cuda'))
-    total_loss = cross_entropy_loss_sum + L1_loss
-
-    return cross_entropy_loss_terms, L1_loss, total_loss
-
-
 class TrainManager(object):
     def __init__(
             self,
             model,
             optimizer,
             args_dict,
-            train_loader, val_loader,
+            train_loader,
+            val_loader,
             if_val_before_begin_train=False):
         """
         Save a number of configuration parameters as instance attributes.
@@ -355,6 +328,8 @@ class TrainManager(object):
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = optimizer
+        self.device = args_dict['device']
+        self.supervised = args_dict['supervised']
         self.num_epochs = args_dict['num_epochs']
         self.validate_every_epochs = args_dict['validate_every_epochs']
         self.if_val_before_begin_train = if_val_before_begin_train
@@ -366,9 +341,12 @@ class TrainManager(object):
         self.verbose = args_dict['verbose']
         self.args_dict_copy = {
             k: v for k, v in args_dict.items()
-            if k not in ('tbx_wrtr', 'tbx_wrtr_dir')
+            if k not in ('device', 'tbx_wrtr', 'tbx_wrtr_dir')
         }
-        self.args_dict_copy.update(tbx_wrtr=None, tbx_wrtr_dir=None)
+        self.args_dict_copy.update(
+            device=None,
+            tbx_wrtr=None,
+            tbx_wrtr_dir=None)
 
     def validate(self, data_loader, step=0):
         """
@@ -384,8 +362,8 @@ class TrainManager(object):
         with torch.no_grad():
             for sample in data_loader:
                 gt_count = sample['dmap'].numpy().sum()
-                image = sample['image'].float().to('cuda')
-                cls0_logits, cls1_logits, cls2_logits, DIV2 = self.model(image)
+                image = sample['image'].float().to(self.device)
+                *cls_logits_list, DIV2, U1, U2, W1, W2 = self.model(image)
                 pred_count = DIV2.cpu().numpy().sum()
                 diff = pred_count - gt_count
                 diffs_count_pred_gt.append(diff)
@@ -441,22 +419,41 @@ class TrainManager(object):
 
             for sample in self.train_loader:
                 gt_cls0_label, gt_cls1_label, gt_cls2_label = sample['labels_gt']
-                gt_div2 = sample['div2_gt']
-                image = sample['image'].float().to('cuda')
-                cls0_logits, cls1_logits, cls2_logits, DIV2 = self.model(image)
-
+                sample_counts_gt = [torch.unsqueeze(c, 1) for c in sample['counts_gt']]
+                gt_div2 = sample_counts_gt[-1]
+                image = sample['image'].float().to(self.device)
+                cls0_logits, cls1_logits, cls2_logits, DIV2, U1, U2, W1, W2 \
+                    = self.model(image)
                 self.optimizer.zero_grad()
 
-                cross_entropy_loss_terms, L1_loss, total_loss = loss_function(
-                    [gt_cls0_label, gt_cls1_label, gt_cls2_label],
-                    [cls0_logits, cls1_logits, cls2_logits],
-                    gt_div2,
-                    DIV2)
-
-                for i in (0, 1, 2):
+                cross_entropy_loss_terms = loss.counter_loss(
+                    (gt_cls0_label, gt_cls1_label, gt_cls2_label),
+                    (cls0_logits, cls1_logits, cls2_logits))
+                
+                merging_loss = loss.merging_loss(gt_div2, DIV2)
+                
+                losses_list = [cross_entropy_loss_terms, merging_loss]
+                if self.supervised:
+                    upsampling_loss = loss.upsampling_loss(sample_counts_gt, U1, U2)
+                    losses_list.append(upsampling_loss)
+                    Cmax = self.model.label2count_tensor[-1]
+                    division_loss = loss.division_loss(sample_counts_gt, W1, W2, Cmax)
+                    losses_list.append(division_loss)
+                
+                total_loss = loss.total_loss(losses_list)
+                
+                for i, CE_term in enumerate(cross_entropy_loss_terms):
                     self.tbx_wrtr.add_scalar(
-                        'losses/cls_%d_loss' % i, cross_entropy_loss_terms[i], batch_iter)
-                self.tbx_wrtr.add_scalar('losses/L1_loss', L1_loss, batch_iter)
+                        'losses/cls_%d_loss' % i, CE_term, batch_iter)
+                self.tbx_wrtr.add_scalar(
+                    'losses/merging_loss', merging_loss, batch_iter)
+
+                if self.supervised:
+                    self.tbx_wrtr.add_scalar(
+                        'losses/upsampling_loss', upsampling_loss, batch_iter)
+                    self.tbx_wrtr.add_scalar(
+                        'losses/division_loss', division_loss, batch_iter)
+                
                 self.tbx_wrtr.add_scalar(
                     'losses/total_loss', total_loss, batch_iter)
 
@@ -515,7 +512,11 @@ def main(args_dict):
         args_dict, (1, 1, 0))
 
     interval_bounds, label2count_list = make_label2count_list(args_dict)
-    model = SDCNet(label2count_list, load_pretr_weights_vgg=True)
+    
+    model = SDCNet(
+        label2count_list,
+        args_dict['supervised'],
+        load_pretr_weights_vgg=True)
 
     if args_dict['pretrained_model']:
         print("  Using pretrained model and its checkpoint '%s'"
@@ -523,7 +524,12 @@ def main(args_dict):
         loaded_struct = torch.load(args_dict['pretrained_model'])
         model.load_state_dict(loaded_struct['model_state_dict'], strict=True)
 
-    model = model.cuda()
+    args_dict['device'] = None
+    if not args_dict['disable_cuda'] and torch.cuda.is_available():
+        args_dict['device'] = torch.device('cuda')
+        model = model.cuda()
+    else:
+        args_dict['device'] = torch.device('cpu')
 
     optimizer = torch.optim.SGD(
         model.parameters(),
