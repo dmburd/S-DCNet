@@ -97,17 +97,17 @@ def check_consist_imgs_annots(imgs_dir, annot_dir):
     (in the '*.mat' file basenames).
     """
     assert os.path.isdir(imgs_dir), \
-        "images directory '%s' is not found" % imgs_dir
+        f"images directory '{imgs_dir}' is not found"
     jpg_files = sorted(glob.glob(pjn(imgs_dir, "*.jpg")))
-    assert jpg_files, "directory '%s' contains no '*.jpg' files" % imgs_dir
+    assert jpg_files, f"directory '{imgs_dir}' contains no '*.jpg' files"
 
     jpg_basenames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in jpg_files]
 
     assert os.path.isdir(annot_dir), \
-        "annotations directory '%s' is not found" % annot_dir
+        f"annotations directory '{annot_dir}' is not found"
     mat_files = sorted(glob.glob(pjn(annot_dir, "*.mat")))
-    assert mat_files, "directory '%s' contains no '*.mat' files" % annot_dir
+    assert mat_files, f"directory '{annot_dir}' contains no '*.mat' files"
 
     mat_basenames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in mat_files]
@@ -300,11 +300,11 @@ def xhp_density_maps(xhp_dir):
         return
 
     if not os.path.isdir(xhp_dir):
-        print("directory '%s' not found" % xhp_dir)
+        print(f"directory '{xhp_dir}' not found")
         return
 
     xhp_mat_files = sorted(glob.glob(pjn(xhp_dir, "*.mat")))
-    assert xhp_mat_files, "directory '%s' contains no '*.mat' files" % xhp_dir
+    assert xhp_mat_files, f"directory '{xhp_dir}' contains no '*.mat' files"
 
     xhp_mat_bnames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in xhp_mat_files]
@@ -343,15 +343,15 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, args_dict):
 
     abs_path = tempfile.mkdtemp(
         suffix=None,
-        prefix='cmp_dmaps_part_%s_test_' % args_dict['part'],
+        prefix=f"cmp_dmaps_part_{args_dict['part']}_test_",
         dir=os.getcwd())
 
     for dm1, (k2, dm2) in zip(my_dmaps_dict.values(), xhp_dmaps_dict.items()):
         skimage.io.imsave(
-            pjn(abs_path, "%s_my.png" % k2),
+            pjn(abs_path, f"{k2}_my.png"),
             (dm1 / np.max(dm1) * 255).astype(np.uint8))
         skimage.io.imsave(
-            pjn(abs_path, "%s_xhp.png" % k2),
+            pjn(abs_path, f"{k2}_xhp.png"),
             (dm2 / np.max(dm2) * 255).astype(np.uint8))
 
 
@@ -371,8 +371,8 @@ if __name__ == "__main__":
 
         bn2points_dict = get_headpoints_dict(annot_dir)
 
-        print("generate_density_maps() call for part_%s %s"
-              % (args_dict['part'], t[:-5]),
+        print(f"generate_density_maps() call for "
+              f"part_{args_dict['part']} {t[:-5]}",
               flush=True)
 
         dmaps_dict = generate_density_maps(
@@ -380,7 +380,7 @@ if __name__ == "__main__":
             imgs_dir,
             args_dict)
 
-        npz_name = "density_maps_part_%s_%s.npz" % (args_dict['part'], t[:-5])
+        npz_name = f"density_maps_part_{args_dict['part']}_{t[:-5]}.npz"
         np.savez(npz_name, **dmaps_dict)
 
         if t == 'test_data':

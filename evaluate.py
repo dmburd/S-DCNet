@@ -99,7 +99,7 @@ def visualize_predictions(model, data_loader, vis_dir):
         fs = (fs_w, fs_h)
         fig, axs = plt.subplots(figsize=fs, dpi=dpi, ncols=2)
         axs[0].imshow(image, vmin=0, vmax=255)
-        axs[0].set_title('Ground truth total count = %.1f' % gt_count)
+        axs[0].set_title(f"Ground truth total count = {gt_count:.1f}")
         extent = (0, w, 0, h)
         axs[1].imshow(image_bleached, vmin=0, vmax=255, extent=extent)
         pred_im = axs[1].imshow(
@@ -107,9 +107,9 @@ def visualize_predictions(model, data_loader, vis_dir):
             cmap='bwr', alpha=0.5,
             extent=extent, interpolation='nearest')
         axs[1].set_title(
-            'Predicted total count = %.1f\n(error = %+.1f, '
-            'relative error = %+.1f%%)'
-            % (pred_count, pred_count - gt_count, rel_err_percent))
+            f"Predicted total count = {pred_count:.1f}\n"
+            f"(error = {pred_count - gt_count:+.1f}, "
+            f"relative error = {rel_err_percent:+.1f}%%)")
         divider = make_axes_locatable(axs[1])
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig.colorbar(pred_im, cax=cax)
@@ -119,7 +119,7 @@ def visualize_predictions(model, data_loader, vis_dir):
 
 
 def main(args_dict):
-    print("  Evaluating the checkpoint '%s'" % args_dict['checkpoint'])
+    print(f"  Evaluating the checkpoint '{args_dict['checkpoint']}'")
     loaded_struct = torch.load(args_dict['checkpoint'])
 
     args_dict.update(loaded_struct['args_dict_copy'])
@@ -145,23 +145,23 @@ def main(args_dict):
     )
 
     print()
-    datadir = pjn(args_dict['dataset_rootdir'], 'part_%s' % args_dict['part'])
-    print("  Evaluating on the (whole) train data and on the test data "
-          "(in '%s')" % datadir)
+    datadir = pjn(args_dict['dataset_rootdir'], f"part_{args_dict['part']}")
+    print(f"  Evaluating on the (whole) train data and on the test data "
+          f"(in '{datadir}')")
 
     mae_train, mse_train = trainer.validate(train_loader)
-    print("  Metrics on the (whole) train data: MAE: %.2f, MSE: %.2f"
-          % (mae_train, mse_train))
+    print(f"  Metrics on the (whole) train data: "
+          f"MAE: {mae_train:.2f}, MSE: {mse_train:.2f}")
 
     mae_test, mse_test = trainer.validate(test_loader)
-    print("  Metrics on the test data:          MAE: %.2f, MSE: %.2f"
-          % (mae_test, mse_test))
+    print(f"  Metrics on the test data:          "
+          f"MAE: {mae_test:.2f}, MSE: {mse_test:.2f}")
 
     if args_dict['visualize']:
         visualize_predictions(
             model,
             test_loader,
-            'visualized_part_%s_test_set_predictions' % args_dict['part'])
+            f"visualized_part_{args_dict['part']}_test_set_predictions")
 
 
 if __name__ == "__main__":

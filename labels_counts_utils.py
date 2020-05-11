@@ -67,7 +67,7 @@ def apply_count2label(counts_tensor, interval_bounds):
     return torch.from_numpy(result)
 
 
-def make_label2count_list(args_dict):
+def make_label2count_list(cfg):
     """
     Construct the mapping between the class labels (int) and count values
     (float).
@@ -86,12 +86,12 @@ def make_label2count_list(args_dict):
         Interval boundaries; list with the count values (their indices are
         the class labels).
     """
-    s = args_dict['interval_step']
-    Cmax = args_dict['num_intervals']
+    s = cfg.model.interval_step
+    Cmax = cfg.dataset.num_intervals
 
     numpoints = int((0.45 - 0.05) / 0.05) + 1
     add_for_two_linear = np.array([])
-    if args_dict['partition_method'] == 2:
+    if cfg.model.partition_method == 2:
         add_for_two_linear = np.linspace(0.05, 0.45, numpoints)
 
     numpoints = int((Cmax - s) / s) + 1

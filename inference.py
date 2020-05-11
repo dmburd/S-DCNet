@@ -77,7 +77,7 @@ def visualize_predictions(model, args_dict):
             img_np = np.array(skimage.io.imread(fpath))
         except:
             if os.path.isfile(fpath):
-                print('  %s: cannot read this file as an image' % fname)
+                print(f"  {fname}: cannot read this file as an image")
             continue
 
         h, w = img_np.shape[:2]
@@ -99,7 +99,7 @@ def visualize_predictions(model, args_dict):
         pred_count_16x16_blocks = DIV2.cpu().detach().numpy()
         pred = pred_count_16x16_blocks.squeeze(0).squeeze(0)
         pred_count = pred.sum()
-        print('  %s: %.1f' % (fname, pred_count))
+        print(f"  {fname}: {pred_count:.1f}")
         #
         bleach_coef = 0.4
         image_bleached = (255 - (255 - img_np) * bleach_coef).astype(int)
@@ -118,7 +118,7 @@ def visualize_predictions(model, args_dict):
             pred,
             cmap='bwr', alpha=0.5,
             extent=extent, interpolation='nearest')
-        axs[1].set_title('Predicted total count = %.1f' % pred_count)
+        axs[1].set_title(f"Predicted total count = {pred_count:.1f}")
         divider = make_axes_locatable(axs[1])
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig.colorbar(pred_im, cax=cax)
@@ -128,8 +128,7 @@ def visualize_predictions(model, args_dict):
 
 
 def main(args_dict):
-    print("  Running inference using checkpoint '%s'"
-          % args_dict['checkpoint'])
+    print(f"  Running inference using checkpoint '{args_dict['checkpoint']}'")
     loaded_struct = torch.load(args_dict['checkpoint'])
 
     args_dict.update(loaded_struct['args_dict_copy'])

@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm
 
+import hydra
 import q
 
 import torch
@@ -30,7 +31,7 @@ from labels_counts_utils import apply_count2label
 # ^ interactive mode
 
 
-def calc_rgb_mean_train(args_dict):
+def calc_rgb_mean_train(cfg):
     """
     Calculate the mean pixel value for each color channel
     for all images in the train set.
@@ -38,16 +39,15 @@ def calc_rgb_mean_train(args_dict):
     90--115 (approximately).
 
     Args:
-        args_dict: Dictionary containing required configuration values.
-            The keys required for this method are 'dataset_rootdir'
-            and 'part'.
+        cfg: the global configuration (hydra).
 
     Returns:
         ndarray of shape (3,) containing the per-channel mean pixel values.
     """
     common_dir = pjn(
-        args_dict['dataset_rootdir'],
-        'part_%s' % args_dict['part'],
+        hydra.utils.get_original_cwd(),
+        cfg.dataset.dataset_rootdir,
+        f'part_{cfg.dataset.part}',
         'train_data',
     )
     imgs_dir = pjn(common_dir, 'images')
@@ -73,14 +73,12 @@ class ShanghaiTechDataset(Dataset):
     The class implementing the pytorch's Dataset API.
     """
 
-    def __init__(self, args_dict, subdir, shuffle_seed=None, rel_inds=(0.0, 1.0), transform=None):
+    def __init__(self, cfg, subdir, shuffle_seed=None, rel_inds=(0.0, 1.0), transform=None):
         """
         Initialization of the ShanghaiTechDataset class instance.
 
         Args:
-            args_dict: Dictionary containing required configuration values.
-                The keys required for this method are 'dataset_rootdir',
-                'part', 'densmaps_gt_npz', 'train_val_split'.
+            cfg: the global configuration (hydra).
             subdir: The subdirectory of the dir 'ShanghaiTech/part_B'
                 or 'ShanghaiTech/part_B' where the groundtruth data is stored.
                 `subdir` must be 'train_data' or 'test_data'.
@@ -105,31 +103,35 @@ class ShanghaiTechDataset(Dataset):
         self.transform = transform
         assert subdir in ('train_data', 'test_data')
 
+        orig_cwd = hydra.utils.get_original_cwd()
         common_dir = pjn(
-            args_dict['dataset_rootdir'],
-            'part_%s' % args_dict['part'],
+            orig_cwd,
+            cfg.dataset.dataset_rootdir,
+            f'part_{cfg.dataset.part}',
             subdir)
 
         self.imgs_dir = pjn(common_dir, 'images')
 
-        npz_files = sorted(glob.glob(args_dict['densmaps_gt_npz']))
+        npz_pattern = pjn(orig_cwd, cfg.dataset.densmaps_gt_npz)
+        npz_files = sorted(glob.glob(npz_pattern))
         train_or_test_suffixes = \
             [os.path.splitext(os.path.split(f)[1])[0].split('_')[-1].lower()
                 for f in npz_files]
         assert train_or_test_suffixes == ['test', 'train']
         npz_file = npz_files[1 if subdir == 'train_data' else 0]
 
-        print("  '%s' is taken as the density maps ground truth file "
-              "for %s subdirectory" % (npz_file, subdir), flush=True)
+        print(f"  '{os.path.relpath(npz_file, orig_cwd)}' is taken as the "
+              f"density maps ground truth file for {subdir} subdirectory",
+              flush=True)
 
         dmaps_dict = np.load(npz_file)
         tot_num_samples = len(dmaps_dict)
         i_init = int(rel_inds[0] * tot_num_samples)
         i_fin = int(rel_inds[1] * tot_num_samples)
 
-        print("  Images with indices in range(%d, %d) will be "
-              "selected (total num. images %d)"
-              % (i_init, i_fin, tot_num_samples), flush=True)
+        print(f"  Images with indices in range({i_init}, {i_fin}) will be "
+              f"selected (total num. images {tot_num_samples})",
+              flush=True)
 
         annot_bnames = sorted(
             list(dmaps_dict.keys()),
@@ -401,7 +403,7 @@ class NoModifications(object):
     def __call__(self, sample):
         print("\tNoModifications() called!", flush=True)
         for attr in ['image', 'dmap', 'div2_gt']:
-            print("sample['%s']:" % attr, type(sample[attr]),
+            print(f"sample['{attr}']:", type(sample[attr]),
                   sample[attr].dtype, sample[attr].shape)
         for ndarr in sample['labels_gt']:
             print("  one of sample['labels_gt']:",
