@@ -1,0 +1,42 @@
+defaults:
+  - dataset: ShanghaiTech_part_B
+  
+resources:
+  disable_cuda: False
+  
+dataset:
+  dataset_rootdir: './ShanghaiTech'
+
+model:
+  supervised: False
+  # ^ True for the Supervised S-DCNet (SS-DCNet)
+  #   False for the older version (unsupervised, ordinary S-DCNet)
+  interval_step: 0.5
+  # ^ interval size for count values
+  partition_method: 2
+  # ^ partition method (1 for one-linear, 2 for two-linear)
+  
+train:
+  train_val_split: 0.9
+  # ^ fraction (train_val_split) of the training set is used for training,
+  #   fraction (1 - train_val_split) of the training set is used for validation
+  batch_size: 1
+  pretrained_ckpt: ""
+  num_epochs: 1000
+  start_epoch: 1
+  # ^ manually set idx for the starting epoch (useful on restarts)
+  lr_schedule:
+    lr_init: 1e-3
+    lr_anneal_rate: 0.95
+    # ^ lr annealing rate (lr[epoch] = lr_init * lr_anneal_rate**epoch)
+  optimizer:
+    momentum: 0.9
+    weight_decay: 1e-4
+  
+validation:
+  batch_size: 1
+  validate_every_epochs: 10
+  if_val_before_begin_train: False
+  
+test:
+  batch_size: 1

@@ -9,6 +9,7 @@ import shutil
 from datetime import datetime
 import math
 import argparse
+import hydra
 from tqdm import tqdm
 import q
 
@@ -26,206 +27,27 @@ from labels_counts_utils import make_label2count_list
 import loss
 
 
-def str2bool(v):
-    """
-    Interprets any of the several specified string values
-    as `True` and all other values as `False`.
-    Used for command line argument parsing.
-    """
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    else:
-        return False
-
-
-def parser_for_arguments():
-    """
-    Creates an ArgumentParser() object, calls its method `.add_argument()`
-    a number of times and returns the object.
-    Note: `.parse_args()` is not called inside this function.
-    Another function can be applied in order to call `.add_argument()`
-    again later.
-
-    Args:
-        None.
-
-    Returns:
-        argparse.ArgumentParser() object.
-    """
-    parser = argparse.ArgumentParser(description='S-DCNet training script')
-
-    parser.add_argument(
-        '--disable-cuda', metavar='{yes|no}',
-        type=str2bool,
-        default=False,
-        help="'yes' to disable CUDA (default: no, CUDA enabled)")
-
-    parser.add_argument(
-        '--supervised', metavar='{yes|no}',
-        type=str2bool,
-        default=False,
-        help="'yes' for the Supervised S-DCNet (SS-DCNet), "
-             "'no' for the older version (unsupervised, ordinary S-DCNet) "
-             "(default: no)")
-
-    parser.add_argument(
-        '--dataset-rootdir', metavar='D',
-        type=str,
-        default='./ShanghaiTech',
-        help="root dir for the dataset (default: './ShanghaiTech')")
-
-    parser.add_argument(
-        '--part', metavar='A_or_B',
-        type=str,
-        default='B',
-        help="'A' for part_A, 'B' for part_B (default: 'B')")
-
-    parser.add_argument(
-        '--densmaps-gt-npz', metavar='P',
-        type=str,
-        default='./density_maps_part_B_*.npz',
-        help="shell pattern for the path to the files "
-             "'density_maps_part_{A|B}_{train,test}.npz' "
-             "(default: './density_maps_part_B_*.npz')")
-
-    parser.add_argument(
-        '--train-val-split', metavar='S',
-        type=float,
-        default=0.9,
-        help="fraction (S) of the training set is used for training, "
-             "fraction (1-S) of the training set is used for validation "
-             "(default: 0.9)")
-
-    parser.add_argument(
-        '--train-batch-size', metavar='N',
-        type=int,
-        default=1,
-        help="batch size for training (default: 1)")
-
-    parser.add_argument(
-        '--val-batch-size', metavar='N',
-        type=int,
-        default=1,
-        help="batch size for validation (default: 1)")
-
-    parser.add_argument(
-        '--test-batch-size', metavar='N',
-        type=int,
-        default=1,
-        help="batch size for testing (default: 1)")
-
-    parser.add_argument(
-        '--pretrained-model', metavar='PRTRN_PATH',
-        type=str,
-        default=None,
-        help="start training from this pretrained model (path is required)"
-             "(default: None, no pretraining, start from scratch)")
-
-    parser.add_argument(
-        '--lr', metavar='INIT_LR',
-        type=float,
-        default=1e-3,
-        help="initial learning rate for the optimizer (default: 1e-3)")
-
-    parser.add_argument(
-        '--lr-anneal-rate', metavar='A',
-        type=float,
-        default=0.99,
-        help="lr annealing rate (lr = INIT_LR * A**epoch) (default: 0.99)")
-
-    parser.add_argument(
-        '--momentum', metavar='M',
-        type=float,
-        default=0.9,
-        help="momentum for the optimizer (default: 0.9)")
-
-    parser.add_argument(
-        '--weight-decay', metavar='D',
-        type=float,
-        default=1e-4,
-        help="weight decay for the optimizer (default: 1e-4)")
-
-    parser.add_argument(
-        '--num-epochs', metavar='NE',
-        type=int,
-        default=1000,
-        help="number of epochs for training (default: 1000)")
-
-    parser.add_argument(
-        '--start-epoch', metavar='SE',
-        type=int,
-        default=1,
-        help="manually set idx for the starting epoch "
-             "(useful on restarts) (default: 1)")
-
-    parser.add_argument(
-        '--validate-every-epochs', metavar='VE',
-        type=int,
-        default=10,
-        help="validate every VE epochs (default: 10)")
-
-    parser.add_argument(
-        '--num-intervals', metavar='N',
-        type=int,
-        default=7,
-        help="number of intervals for count values "
-             "(set 22 for 'part_A', 7 for 'part_B') (default: 7)")
-
-    parser.add_argument(
-        '--interval-step', metavar='S',
-        type=float,
-        default=0.5,
-        help="interval size for count values (default: 0.5)")
-
-    parser.add_argument(
-        '--partition-method', metavar='M',
-        type=int,
-        default=2,
-        help="partition method (1 for one-linear, 2 for two-linear) "
-             "(default: 2)")
-
-    parser.add_argument(
-        '--verbose', metavar='{yes|no}',
-        type=str2bool,
-        default=True,
-        help="print some useful info to stdout (default: yes)")
-
-    return parser
-
-
-def cur_datetime_str():
-    """
-    A custom pretty-printed date and time (at the moment of function call).
-    """
-    t = datetime.now().timetuple()
-    ans = "%d-%02d-%02d_%02d-%02d-%02d" % t[:6]
-    return ans
-
-
 def print_dbg_info_dataloader(loader):
     """
     Prints image names and tensor shapes for samples in a DataLoader.
     Was used for debugging.
     """
     for i, sample in enumerate(loader):
-        print("i = %d; image bname = %s; image shape = %s"
-              % (i, sample['image_bname'], tuple(sample['image'].shape)))
-        print("counts_gt shapes = %s; labels_gt shapes = %s"
-              % (str(tuple(l.shape) for l in sample['labels_gt']),
-                 str(tuple(l.shape) for l in sample['counts_gt'])))
+        print(f"i = {i}; image bname = {sample['image_bname']}; "
+              f"image shape = {tuple(sample['image'].shape)}")
+        cs = sample['counts_gt']
+        ls = sample['labels_gt']
+        print(f"counts_gt shapes = {tuple(l.shape) for l in cs}; "
+              f"labels_gt shapes = {tuple(l.shape) for l in ls}")
         print()
 
 
-def get_dataloaders(args_dict, train_val_test_mask):
+def get_dataloaders(cfg, train_val_test_mask):
     """
     Constructs Dataset objects and corresponding DataLoader objects.
 
     Args:
-        args_dict: Dictionary containing required configuration values.
-            The keys required for this function are 'interval_bounds',
-            'interval_step', 'num_intervals', 'partition_method',
-            'dataset_rootdir', 'part', 'train_val_split',
-            'train_batch_size', 'val_batch_size', 'test_batch_size'.
+        cfg: the global configuration (hydra).
         train_val_test_mask: a list or tuple containing three values
             that will be interpreted as booleans, for example (1,1,0).
             The corresponding DataLoaders for the (train, val, test)
@@ -236,16 +58,13 @@ def get_dataloaders(args_dict, train_val_test_mask):
         corresponding to the `False` values in `train_val_test_mask` 
         are set to `None`.
     """
-    args_dict['interval_bounds'], label2count_list = \
-        make_label2count_list(args_dict)
+    interval_bounds, label2count_list = make_label2count_list(cfg)
 
-    assert len(label2count_list) \
-        == args_dict['interval_bounds'].shape[0] + 1, \
+    assert len(label2count_list) == interval_bounds.shape[0] + 1, \
         "Number of class labels must be equal to (1 + number of interval " \
         "boundaries), but the equality does not hold"
 
-    rgb_mean_train = dtst.calc_rgb_mean_train(args_dict)
-    args_dict['rgb_mean_train'] = rgb_mean_train
+    rgb_mean_train = dtst.calc_rgb_mean_train(cfg)
 
     composed_transf_train = transforms.Compose([
         dtst.Normalize(rgb_mean_train),
@@ -253,7 +72,7 @@ def get_dataloaders(args_dict, train_val_test_mask):
         dtst.RandomHorizontalFlip(p=0.5),
         dtst.QuasiRandomCrop(),
         dtst.PadToMultipleOf64(),
-        dtst.AddGtCountsLabels(args_dict['interval_bounds']),
+        dtst.AddGtCountsLabels(interval_bounds),
     ])
 
     composed_transf_test = transforms.Compose([
@@ -264,14 +83,14 @@ def get_dataloaders(args_dict, train_val_test_mask):
 
     if train_val_test_mask[0]:
         train_dataset = dtst.ShanghaiTechDataset(
-            args_dict,
+            cfg,
             subdir='train_data',
             shuffle_seed=42,
-            rel_inds=(0.0, args_dict['train_val_split']),
+            rel_inds=(0.0, cfg.train.train_val_split),
             transform=composed_transf_train)
         train_loader = DataLoader(
             train_dataset,
-            batch_size=args_dict['train_batch_size'],
+            batch_size=cfg.train.batch_size,
             shuffle=True,
             num_workers=4)
     else:
@@ -279,14 +98,14 @@ def get_dataloaders(args_dict, train_val_test_mask):
 
     if train_val_test_mask[1]:
         val_dataset = dtst.ShanghaiTechDataset(
-            args_dict,
+            cfg,
             subdir='train_data',
             shuffle_seed=42,
-            rel_inds=(args_dict['train_val_split'], 1.0),
+            rel_inds=(cfg.train.train_val_split, 1.0),
             transform=composed_transf_test)
         val_loader = DataLoader(
             train_dataset,
-            batch_size=args_dict['val_batch_size'],
+            batch_size=cfg.validation.batch_size,
             shuffle=False,
             num_workers=4)
     else:
@@ -294,14 +113,14 @@ def get_dataloaders(args_dict, train_val_test_mask):
 
     if train_val_test_mask[2]:
         test_dataset = dtst.ShanghaiTechDataset(
-            args_dict,
+            cfg,
             subdir='test_data',
             shuffle_seed=None,
             rel_inds=(0.0, 1.0),
             transform=composed_transf_test)
         test_loader = DataLoader(
             test_dataset,
-            batch_size=args_dict['test_batch_size'],
+            batch_size=cfg.test.batch_size,
             shuffle=False,
             num_workers=4)
     else:
@@ -315,38 +134,19 @@ class TrainManager(object):
             self,
             model,
             optimizer,
-            args_dict,
+            cfg,
+            additional_cfg,
             train_loader,
-            val_loader,
-            if_val_before_begin_train=False):
-        """
-        Save a number of configuration parameters as instance attributes.
-        `tbx_wrtr` and `tbx_wrtr_dir` should not be serialized, so they
-        are excluded from the copy of the configuration `args_dict`.
-        """
+            val_loader):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.optimizer = optimizer
-        self.device = args_dict['device']
-        self.supervised = args_dict['supervised']
-        self.num_epochs = args_dict['num_epochs']
-        self.validate_every_epochs = args_dict['validate_every_epochs']
-        self.if_val_before_begin_train = if_val_before_begin_train
-        self.start_epoch = args_dict['start_epoch']
-        self.init_learning_rate = args_dict['lr']
-        self.lr_anneal_rate = args_dict['lr_anneal_rate']
-        self.tbx_wrtr_dir = args_dict['tbx_wrtr_dir']
-        self.tbx_wrtr = args_dict['tbx_wrtr']
-        self.verbose = args_dict['verbose']
-        self.args_dict_copy = {
-            k: v for k, v in args_dict.items()
-            if k not in ('device', 'tbx_wrtr', 'tbx_wrtr_dir')
-        }
-        self.args_dict_copy.update(
-            device=None,
-            tbx_wrtr=None,
-            tbx_wrtr_dir=None)
+        self.cfg = cfg
+        self.add_cfg = additional_cfg
+        self.tbx_wrtr_dir = os.getcwd()
+        self.orig_cwd = hydra.utils.get_original_cwd()
+        self.tbx_wrtr = SummaryWriter(logdir=self.tbx_wrtr_dir)
 
     def validate(self, data_loader, step=0):
         """
@@ -362,7 +162,7 @@ class TrainManager(object):
         with torch.no_grad():
             for sample in data_loader:
                 gt_count = sample['dmap'].numpy().sum()
-                image = sample['image'].float().to(self.device)
+                image = sample['image'].float().to(self.add_cfg['device'])
                 *cls_logits_list, DIV2, U1, U2, W1, W2 = self.model(image)
                 pred_count = DIV2.cpu().numpy().sum()
                 diff = pred_count - gt_count
@@ -387,7 +187,7 @@ class TrainManager(object):
         batch_iter = 0
         epoch = 0
 
-        if self.if_val_before_begin_train:
+        if self.cfg.validation.if_val_before_begin_train:
             initial_val_mae, initial_val_mse = self.validate(
                 self.val_loader, step=epoch)
             initial_tr_mae, initial_tr_mse = self.validate(
@@ -402,11 +202,11 @@ class TrainManager(object):
                 epoch)
 
         print()
-        print("  The checkpoints and tensorboard events files "
-              "are saved to '%s'" % self.tbx_wrtr_dir)
+        print(f"  The checkpoints and tensorboard events files are saved to "
+              f"'{os.path.relpath(self.tbx_wrtr_dir, self.orig_cwd)}'")
         print("  Progress bar for training epochs:")
-        end_epoch = self.start_epoch + self.num_epochs
-        for epoch in tqdm(range(self.start_epoch, end_epoch)):
+        end_epoch = self.cfg.train.start_epoch + self.cfg.train.num_epochs
+        for epoch in tqdm(range(self.cfg.train.start_epoch, end_epoch)):
             self.model.train()
             self.adjust_learning_rate(epoch)
 
@@ -421,7 +221,7 @@ class TrainManager(object):
                 gt_cls0_label, gt_cls1_label, gt_cls2_label = sample['labels_gt']
                 sample_counts_gt = [torch.unsqueeze(c, 1) for c in sample['counts_gt']]
                 gt_div2 = sample_counts_gt[-1]
-                image = sample['image'].float().to(self.device)
+                image = sample['image'].float().to(self.add_cfg['device'])
                 cls0_logits, cls1_logits, cls2_logits, DIV2, U1, U2, W1, W2 \
                     = self.model(image)
                 self.optimizer.zero_grad()
@@ -433,7 +233,7 @@ class TrainManager(object):
                 merging_loss = loss.merging_loss(gt_div2, DIV2)
                 
                 losses_list = [cross_entropy_loss_terms, merging_loss]
-                if self.supervised:
+                if self.cfg.model.supervised:
                     upsampling_loss = loss.upsampling_loss(sample_counts_gt, U1, U2)
                     losses_list.append(upsampling_loss)
                     Cmax = self.model.label2count_tensor[-1]
@@ -444,11 +244,11 @@ class TrainManager(object):
                 
                 for i, CE_term in enumerate(cross_entropy_loss_terms):
                     self.tbx_wrtr.add_scalar(
-                        'losses/cls_%d_loss' % i, CE_term, batch_iter)
+                        f'losses/cls_{i}_loss', CE_term, batch_iter)
                 self.tbx_wrtr.add_scalar(
                     'losses/merging_loss', merging_loss, batch_iter)
 
-                if self.supervised:
+                if self.cfg.model.supervised:
                     self.tbx_wrtr.add_scalar(
                         'losses/upsampling_loss', upsampling_loss, batch_iter)
                     self.tbx_wrtr.add_scalar(
@@ -461,7 +261,7 @@ class TrainManager(object):
                 self.optimizer.step()
                 batch_iter += 1
 
-            if epoch % self.validate_every_epochs == 0:
+            if epoch % self.cfg.validation.validate_every_epochs == 0:
                 val_mae, val_mse = self.validate(self.val_loader, step=epoch)
                 tr_mae, tr_mse = self.validate(self.train_loader, step=epoch)
                 self.tbx_wrtr.add_scalars(
@@ -473,17 +273,19 @@ class TrainManager(object):
                     {'val': val_mse, 'train': tr_mse},
                     epoch)
                 #
-                nm = 'epoch_%04d.pth' % epoch
+                nm = f'epoch_{epoch:04d}.pth'
                 if not os.path.isdir(pjn(self.tbx_wrtr_dir, 'checkpoints')):
                     os.mkdir(pjn(self.tbx_wrtr_dir, 'checkpoints'))
-                self.save_ckpt(epoch, fpath=pjn(
-                    self.tbx_wrtr_dir, 'checkpoints', nm))
+                self.save_ckpt(
+                    epoch=epoch,
+                    fpath=pjn(self.tbx_wrtr_dir, 'checkpoints', nm))
 
     def adjust_learning_rate(self, epoch):
         """
         Use exponentially decreasing learning rate schedule.
         """
-        lr = self.init_learning_rate * (self.lr_anneal_rate ** epoch)
+        lr_section = self.cfg.train.lr_schedule
+        lr = lr_section.lr_init * (lr_section.lr_anneal_rate ** epoch)
         # update optimizer's learning rate
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
@@ -491,71 +293,60 @@ class TrainManager(object):
     def save_ckpt(self, epoch, fpath):
         """
         Save the checkpoint containing the epoch index,
-        the model state dict, the optimizer state dict,
-        and the configuration parameters (`args_dict`).
+        the model state dict, the optimizer state dict.
         """
         d = {
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'args_dict_copy': self.args_dict_copy,
         }
         torch.save(d, fpath)
 
 
-def main(args_dict):
+@hydra.main(config_path="conf/config_train_val_test.yaml")
+def main(cfg):
     """
     Create data loaders, the model instance, optimizer and TrainManager()
     object. Run the training process.
     """
-    train_loader, val_loader, test_loader = get_dataloaders(
-        args_dict, (1, 1, 0))
-
-    interval_bounds, label2count_list = make_label2count_list(args_dict)
+    orig_cwd = hydra.utils.get_original_cwd()
+    train_loader, val_loader, test_loader = get_dataloaders(cfg, (1, 1, 0))
+    interval_bounds, label2count_list = make_label2count_list(cfg)
     
     model = SDCNet(
         label2count_list,
-        args_dict['supervised'],
+        cfg.model.supervised,
         load_pretr_weights_vgg=True)
 
-    if args_dict['pretrained_model']:
-        print("  Using pretrained model and its checkpoint '%s'"
-              % args_dict['pretrained_model'])
-        loaded_struct = torch.load(args_dict['pretrained_model'])
+    if cfg.train.pretrained_ckpt:
+        print(f"  Using pretrained model and its checkpoint "
+              f"'{os.path.relpath(cfg.train.pretrained_ckpt, orig_cwd)}'")
+        loaded_struct = torch.load(cfg.train.pretrained_ckpt)
         model.load_state_dict(loaded_struct['model_state_dict'], strict=True)
-
-    args_dict['device'] = None
-    if not args_dict['disable_cuda'] and torch.cuda.is_available():
-        args_dict['device'] = torch.device('cuda')
+    
+    additional_cfg = {'device': None}
+    if not cfg.resources.disable_cuda and torch.cuda.is_available():
+        additional_cfg['device'] = torch.device('cuda')
         model = model.cuda()
     else:
-        args_dict['device'] = torch.device('cpu')
+        additional_cfg['device'] = torch.device('cpu')
 
     optimizer = torch.optim.SGD(
         model.parameters(),
-        lr=args_dict['lr'],
-        momentum=args_dict['momentum'],
-        weight_decay=args_dict['weight_decay'])
+        lr=cfg.train.lr_schedule.lr_init,
+        momentum=cfg.train.optimizer.momentum,
+        weight_decay=cfg.train.optimizer.weight_decay)
 
     trainer = TrainManager(
         model,
         optimizer,
-        args_dict,
+        cfg,
+        additional_cfg,
         train_loader=train_loader,
-        val_loader=val_loader,
-        if_val_before_begin_train=False)
+        val_loader=val_loader)
 
     trainer.train()
 
 
 if __name__ == "__main__":
-    parser = parser_for_arguments()
-    args = parser.parse_args()
-
-    tbx_wrtr_dir = "run_%s" % cur_datetime_str()
-
-    with SummaryWriter(tbx_wrtr_dir) as tbx_wrtr:
-        args_dict = vars(args)
-        args_dict['tbx_wrtr_dir'] = tbx_wrtr_dir
-        args_dict['tbx_wrtr'] = tbx_wrtr
-        main(args_dict)
+    main()

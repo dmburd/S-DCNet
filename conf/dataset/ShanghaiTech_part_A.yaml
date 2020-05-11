@@ -1,0 +1,8 @@
+dataset:
+  part: 'A'
+  densmaps_gt_npz: './density_maps_part_A_*.npz'
+  # ^ shell pattern for the path to the files 
+  #   'density_maps_part_A_{train,test}.npz' 
+  num_intervals: 22
+  # ^ number of intervals for count values
+  #   (authors of S-DCNet use 22 for part_A)
