@@ -5,17 +5,13 @@ from sys import exit as e
 from os.path import join as pjn
 import copy
 import glob
-import pickle
 import math
 import random
-from collections import OrderedDict
 import numpy as np
 import skimage
 import skimage.io
 from PIL import Image
 import matplotlib.pyplot as plt
-from datetime import datetime
-from tqdm import tqdm
 
 import hydra
 import q
@@ -146,7 +142,10 @@ class ShanghaiTechDataset(Dataset):
         self.img_np_list = []
         self.dmap_list = []
 
-        for annot_bname in tqdm(annot_bnames_selected):
+        print(f"  Filling the Dataset object (reading the images)... ",
+              end='',
+              flush=True)
+        for annot_bname in annot_bnames_selected:
             self.img_bname_list.append(annot_bname[3:])
             #
             dmap = dmaps_dict[annot_bname]
@@ -161,6 +160,8 @@ class ShanghaiTechDataset(Dataset):
                 # monochrome image, only one channel; expand to 3 channels
                 img_np = np.repeat(np.expand_dims(img_np, axis=2), 3, axis=2)
             self.img_np_list.append(img_np)
+        
+        print(f"Done", flush=True)
 
     def __len__(self):
         """

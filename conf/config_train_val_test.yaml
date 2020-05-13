@@ -27,7 +27,7 @@ train:
   # ^ manually set idx for the starting epoch (useful on restarts)
   lr_schedule:
     lr_init: 1e-3
-    lr_anneal_rate: 0.95
+    lr_anneal_rate: 0.99
     # ^ lr annealing rate (lr[epoch] = lr_init * lr_anneal_rate**epoch)
   optimizer:
     momentum: 0.9
@@ -35,8 +35,9 @@ train:
   
 validation:
   batch_size: 1
-  validate_every_epochs: 10
+  validate_ckpt_every_epochs: 10
   if_val_before_begin_train: False
+  save_ckpt_every_epochs: 10
   
 test:
   batch_size: 1

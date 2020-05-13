@@ -8,8 +8,8 @@ import glob
 import shutil
 from datetime import datetime
 import math
-import argparse
 import hydra
+import logging
 from tqdm import tqdm
 import q
 
@@ -261,7 +261,7 @@ class TrainManager(object):
                 self.optimizer.step()
                 batch_iter += 1
 
-            if epoch % self.cfg.validation.validate_every_epochs == 0:
+            if epoch % self.cfg.validation.validate_ckpt_every_epochs == 0:
                 val_mae, val_mse = self.validate(self.val_loader, step=epoch)
                 tr_mae, tr_mse = self.validate(self.train_loader, step=epoch)
                 self.tbx_wrtr.add_scalars(
@@ -272,7 +272,8 @@ class TrainManager(object):
                     'error_values/MSE',
                     {'val': val_mse, 'train': tr_mse},
                     epoch)
-                #
+            
+            if epoch % self.cfg.validation.save_ckpt_every_epochs == 0:
                 nm = f'epoch_{epoch:04d}.pth'
                 if not os.path.isdir(pjn(self.tbx_wrtr_dir, 'checkpoints')):
                     os.mkdir(pjn(self.tbx_wrtr_dir, 'checkpoints'))

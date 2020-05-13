@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
+from torchsummary import summary
 
 from labels_counts_utils import apply_label2count, make_label2count_list
 
@@ -163,8 +164,7 @@ class SDCNet(nn.Module):
 
         self.division_decider = fully_conv_classif(512, 1)
         self.supervised = supervised
-        if self.supervised:
-            self.upsampler = fully_conv_classif(512, 1)
+        self.upsampler = fully_conv_classif(512, 1)
         
         self.up_from_4_to_3 = Up(
             up_in_ch=512, up_out_ch=256, cat_in_ch=(256+256), cat_out_ch=512)
@@ -227,12 +227,14 @@ class SDCNet(nn.Module):
         cls2 = torch.argmax(cls2_logits, dim=1, keepdim=True)
         C2 = apply_label2count(cls2, self.label2count_tensor.to(cls2.device))
 
-        krn = torch.ones((C0.shape[0], 1, 2, 2)).to(C0.device)
+        krn = torch.ones((1, 1, 2, 2)).to(C0.device)
         # ^ kernel for conv_transpose2d
         #   (used for calculate Kronecker product C0 [kron_prod] 1(2x2)
-        C0_redistr_2x2 = F.conv_transpose2d(C0, krn, stride=2) * U1
+        C0_x2x2 = F.conv_transpose2d(C0, krn, stride=2)
+        C0_redistr_2x2 = C0_x2x2 * U1
         DIV1 = (1.0 - W1) * C0_redistr_2x2 + W1 * C1
-        DIV1_redistr_2x2 = F.conv_transpose2d(DIV1, krn, stride=2) * U2
+        DIV1_x2x2 = F.conv_transpose2d(DIV1, krn, stride=2)
+        DIV1_redistr_2x2 = DIV1_x2x2 * U2
         DIV2 = (1.0 - W2) * DIV1_redistr_2x2 + W2 * C2
 
         tuple_for_loss_calc = (
@@ -258,28 +260,42 @@ if __name__ == "__main__":
     Code for debugging.
     Create a model instance and save it in several supported formats.
     """
-
-    args_dict = {
-        'num_intervals': 22,  # {'SH_PartA': 22, 'SH_PartB': 7},
-        'interval_step': 0.5,
-        'partition_method': 2,  # one-linear (1) or two-linear (2)
-    }
-
-    interval_bounds, label2count_list = make_label2count_list(args_dict)
+    class Object(object):
+        pass
+    
+    class Cfg:
+        # imitates config from hydra (only 3 parameters from the full config
+        # are required here to instantiate SDCNet)
+        def __init__(self, num_intervals, interval_step, partition_method):
+            self.dataset = Object()
+            self.dataset.num_intervals = num_intervals
+            self.model = Object()
+            self.model.interval_step = interval_step
+            self.model.partition_method = partition_method
+            
+    cfg = Cfg(22, 0.5, 2) # for part_A
+    #cfg = Cfg(7, 0.5, 2) # for part_B
+    interval_bounds, label2count_list = make_label2count_list(cfg)
 
     # ================================================================
-    batch_size = 1
-    x = torch.randn(batch_size, 3, 64*1, 64*1, requires_grad=False)
-
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     sdcnet_instance = SDCNet(
         label2count_list,
         supervised=True,
-        load_pretr_weights_vgg=True)
+        load_pretr_weights_vgg=True
+    ).to(device)
 
+    batch_size = 1
+    h = 64 * 3
+    w = 64 * 2
+    summary(sdcnet_instance, (3, h, w))
+    
+    x = torch.randn(batch_size, 3, h, w, requires_grad=False).to(device)
     out_list = sdcnet_instance(x)
     shapes_list = [str(one_featmap.shape) for one_featmap in out_list]
     print("\n".join(shapes_list))
-    e()
+    
     # save in several possible ways
     torch.save(sdcnet_instance.state_dict(), "sdcnet_state_dict.pth")
 
