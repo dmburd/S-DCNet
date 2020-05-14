@@ -144,9 +144,9 @@ class TrainManager(object):
         self.optimizer = optimizer
         self.cfg = cfg
         self.add_cfg = additional_cfg
-        self.tbx_wrtr_dir = os.getcwd()
+        self.tbx_wrtr_dir = additional_cfg['tbx_wrtr_dir']
         self.orig_cwd = hydra.utils.get_original_cwd()
-        self.tbx_wrtr = SummaryWriter(logdir=self.tbx_wrtr_dir)
+        self.tbx_wrtr = additional_cfg['tbx_wrtr']
 
     def validate(self, data_loader, step=0):
         """
@@ -338,15 +338,17 @@ def main(cfg):
         momentum=cfg.train.optimizer.momentum,
         weight_decay=cfg.train.optimizer.weight_decay)
 
-    trainer = TrainManager(
-        model,
-        optimizer,
-        cfg,
-        additional_cfg,
-        train_loader=train_loader,
-        val_loader=val_loader)
-
-    trainer.train()
+    additional_cfg['tbx_wrtr_dir'] = os.getcwd()
+    with SummaryWriter(additional_cfg['tbx_wrtr_dir']) as tbx_wrtr:
+        additional_cfg['tbx_wrtr'] = tbx_wrtr
+        trainer = TrainManager(
+            model,
+            optimizer,
+            cfg,
+            additional_cfg,
+            train_loader=train_loader,
+            val_loader=val_loader)
+        trainer.train()
 
 
 if __name__ == "__main__":
