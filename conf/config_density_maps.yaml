@@ -1,0 +1,20 @@
+defaults:
+  - dataset: ShanghaiTech_part_B
+  - hydra/job_logging: disabled
+
+hydra:
+  run:
+    dir: './'
+
+dataset:
+  dataset_rootdir: './ShanghaiTech'
+
+one_headpoint_dmap:
+  knn: 3
+  # ^ number of nearest neigbors to calculate distance to
+  max_knn_avg_dist: 50.0
+  # ^ average knn distance is set to this value if exceeds this value
+  sigma_coef: 0.3
+  # ^ Gaussian's sigma = sigma_coef * knn_avg_dist
+  sqr_side: 40
+  # ^ Gaussian values are set to 0.0 outside of [-sqr_side/2, +sqr_side/2]

@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import sys
 import os
 import os.path
@@ -11,7 +9,7 @@ import q
 import math
 import random
 from collections import OrderedDict
-import argparse
+import hydra
 import tempfile
 import time
 from tqdm import tqdm
@@ -31,63 +29,6 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-def parse_arguments():
-    """
-    Creates an ArgumentParser() object, calls its method `.add_argument()`
-    a number of times, calls `.parse_args()` and returns the result.
-    """
-    parser = argparse.ArgumentParser(
-        description='Density map generator for ShanghaiTech (part_A, part_B)')
-
-    parser.add_argument(
-        '--dataset-rootdir', metavar='D',
-        type=str,
-        default='./ShanghaiTech',
-        help="root dir for the dataset (default: './ShanghaiTech')")
-
-    parser.add_argument(
-        '--part', metavar='A_or_B',
-        type=str,
-        default='B',
-        help="'A' for part_A, 'B' for part_B (default: 'B')")
-
-    parser.add_argument(
-        '--knn', metavar='K',
-        type=int,
-        default=3,
-        help="number of nearest neigbors to "
-             "calculate distance to (default: 3)")
-
-    parser.add_argument(
-        '--max-knn-avg-dist', metavar='M',
-        type=float,
-        default=50.0,
-        help="average knn distance is set to M if exceeds it (default M: 50)")
-
-    parser.add_argument(
-        '--sigma-coef', metavar='COEF',
-        type=float,
-        default=0.3,
-        help="gaussian's sigma = COEF * knn_avg_dist (default COEF: 0.3)")
-
-    parser.add_argument(
-        '--sqr-side', metavar='S',
-        type=int,
-        default=40,
-        help="gaussian values set to 0.0 outside of [-S/2, +S/2] "
-             "(default S: 40)")
-
-    parser.add_argument(
-        '--xhp-dir', metavar='PATH',
-        type=str,
-        help="path to the dir containing density maps as *.mat files "
-             "(for part_A or part_B test set) from the repo "
-             "github.com/xhp-hust-2018-2011/S-DCNet")
-
-    args = parser.parse_args()
-    return args
-
-
 def check_consist_imgs_annots(imgs_dir, annot_dir):
     """
     Check the correspondence between the images and annotations.
@@ -96,18 +37,25 @@ def check_consist_imgs_annots(imgs_dir, annot_dir):
     differ only by the leading 'GT_' substring
     (in the '*.mat' file basenames).
     """
-    assert os.path.isdir(imgs_dir), \
-        f"images directory '{imgs_dir}' is not found"
+    if not os.path.isdir(imgs_dir):
+        raise FileNotFoundError(f"images directory '{imgs_dir}' is not found")
+    
     jpg_files = sorted(glob.glob(pjn(imgs_dir, "*.jpg")))
-    assert jpg_files, f"directory '{imgs_dir}' contains no '*.jpg' files"
+    if not jpg_files:
+        raise FileNotFoundError(
+            f"directory '{imgs_dir}' contains no '*.jpg' files")
 
     jpg_basenames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in jpg_files]
 
-    assert os.path.isdir(annot_dir), \
-        f"annotations directory '{annot_dir}' is not found"
+    if not os.path.isdir(annot_dir):
+        raise FileNotFoundError(
+            f"annotations directory '{annot_dir}' is not found")
+    
     mat_files = sorted(glob.glob(pjn(annot_dir, "*.mat")))
-    assert mat_files, f"directory '{annot_dir}' contains no '*.mat' files"
+    if not mat_files:
+        raise FileNotFoundError(
+            f"directory '{annot_dir}' contains no '*.mat' files")
 
     mat_basenames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in mat_files]
@@ -132,7 +80,9 @@ def get_headpoints_dict(annot_dir):
     mat_files = sorted(glob.glob(pjn(annot_dir, "*.mat")))
     mat_basenames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in mat_files]
+    
     basename2headpoints_dict = OrderedDict()
+    
     for f, bn in zip(mat_files, mat_basenames):
         mat = scipy.io.loadmat(f)
         numpy_void_obj = mat['image_info'][0][0][0][0]
@@ -173,7 +123,7 @@ def get_one_head_gaussian(side_len, r, sigma):
     return one_head_gaussian
 
 
-def generate_density_maps(basename2headpoints_dict, imgs_dir, args_dict):
+def generate_density_maps(basename2headpoints_dict, imgs_dir, cfg):
     """
     Generate the density maps. They are the sums of normalized Gaussian
     functions centered at the people's head points.
@@ -186,13 +136,13 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, args_dict):
     values is equal to the number of annotated heads.
 
     The Gaussian RMS width is adaptive. Consider one head point. 
-    `args_dict['knn']` (3 by default) nearest neighbors for that point
-    are found and average distance to them is calculated. That average 
+    `cfg.one_headpoint_dmap.knn` (3 by default) nearest neighbors for that 
+    point are found and average distance to them is calculated. That average 
     distance is capped by the constant pre-defined value 
-    `args_dict['max_knn_avg_dist']` (50.0 by default) for ShanghaiTech 
+    `cfg.one_headpoint_dmap.max_knn_avg_dist` (50.0 by default) for ShanghaiTech 
     part_B dataset (the average distance is not capped for ShanghaiTech
     part_A). The `sigma` (Gaussian RMS width) is the product of the average
-    distance and a pre-defined constant `args_dict['sigma_coef']`
+    distance and a pre-defined constant `cfg.one_headpoint_dmap.sigma_coef`
     (0.3 by default).
     The sum of the density map values across the whole image area must be
     equal to the number of annotated heads.
@@ -203,16 +153,14 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, args_dict):
             (returned by get_headpoints_dict()).
         imgs_dir: Directory containing images (only their width and hight
             values are needed).
-        args_dict: Dictionary containing required configuration values.
-            The keys required for this function are 'part', 'sqr_side', 'knn',
-            'max_knn_avg_dist', 'sigma_coef'.
+        cfg: the global configuration (hydra).
 
     Returns:
         basename2dmap_dict: Dictionary containing the mapping between the 
         basenames and density maps (each density map has the same height 
         and width as the corresponding image).
     """
-    side_len = args_dict['sqr_side']
+    side_len = cfg.one_headpoint_dmap.sqr_side
     r = 1 + side_len // 2
 
     basename2dmap_dict = OrderedDict()
@@ -226,11 +174,10 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, args_dict):
         # `points` contains pairs (coord_along_w, coord_along_h) as floats
 
         neigh = NearestNeighbors(
-            n_neighbors=(1 + args_dict['knn']),
-            # each point^ is the closest one to itself
+            n_neighbors=(1 + cfg.one_headpoint_dmap.knn),
+            # each point ^ is the closest one to itself
             metric='euclidean',
-            n_jobs=-1
-        )
+            n_jobs=-1)
         neigh.fit(points)
         knn_dists, knn_inds = neigh.kneighbors(points)
 
@@ -239,12 +186,12 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, args_dict):
         for j, w_h_pair in enumerate(points):
             knn_dist_avg = knn_dists[j, 1:].mean()
             # excluding the point itself^ (zero distance)
-            max_d = args_dict['max_knn_avg_dist']
+            max_d = cfg.one_headpoint_dmap.max_knn_avg_dist
 
-            if (knn_dist_avg > max_d) and (args_dict['part'] == 'B'):
+            if (knn_dist_avg > max_d) and (cfg.dataset.part == 'B'):
                 knn_dist_avg = max_d
 
-            sigma = args_dict['sigma_coef'] * knn_dist_avg
+            sigma = cfg.one_headpoint_dmap.sigma_coef * knn_dist_avg
             one_head_gaussian = get_one_head_gaussian(side_len, r, sigma)
             one_head_sum = np.sum(one_head_gaussian)
 
@@ -300,11 +247,13 @@ def xhp_density_maps(xhp_dir):
         return
 
     if not os.path.isdir(xhp_dir):
-        print(f"directory '{xhp_dir}' not found")
+        print(f"  directory '{xhp_dir}' not found")
         return
 
     xhp_mat_files = sorted(glob.glob(pjn(xhp_dir, "*.mat")))
-    assert xhp_mat_files, f"directory '{xhp_dir}' contains no '*.mat' files"
+    if not xhp_mat_files:
+        print(f"directory '{xhp_dir}' contains no '*.mat' files")
+        return
 
     xhp_mat_bnames = [
         os.path.splitext(os.path.split(f)[1])[0] for f in xhp_mat_files]
@@ -317,7 +266,7 @@ def xhp_density_maps(xhp_dir):
     return bname2dmap_dict
 
 
-def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, args_dict):
+def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, part):
     """
     Compare the density maps obtained by generate_density_maps() with the
     density maps from the official repository.
@@ -328,8 +277,7 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, args_dict):
             the calling generate_density_maps().
         xhp_dmaps_dict: basenames <-> density maps mapping from the official
             repository.
-        args_dict: Dictionary containing required configuration values.
-            The key required for this function is 'part'.
+        part: ShanghaiTech dataset part ('A' or 'B').
 
     Returns:
         None.
@@ -343,7 +291,7 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, args_dict):
 
     abs_path = tempfile.mkdtemp(
         suffix=None,
-        prefix=f"cmp_dmaps_part_{args_dict['part']}_test_",
+        prefix=f"cmp_dmaps_part_{part}_test_",
         dir=os.getcwd())
 
     for dm1, (k2, dm2) in zip(my_dmaps_dict.values(), xhp_dmaps_dict.items()):
@@ -355,34 +303,36 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, args_dict):
             (dm2 / np.max(dm2) * 255).astype(np.uint8))
 
 
-if __name__ == "__main__":
-    args = parse_arguments()
-    args_dict = vars(args)
-
+@hydra.main(config_path="conf/config_density_maps.yaml")
+def main(cfg):
     for t in ['train_data', 'test_data']:
         the_dir = pjn(
-            args_dict['dataset_rootdir'],
-            "part_" + args_dict['part'],
-            t
-        )
+            cfg.dataset.dataset_rootdir,
+            f"part_{cfg.dataset.part}",
+            t)
         imgs_dir = pjn(the_dir, "images")
         annot_dir = pjn(the_dir, "ground-truth")
         check_consist_imgs_annots(imgs_dir, annot_dir)
 
         bn2points_dict = get_headpoints_dict(annot_dir)
 
-        print(f"generate_density_maps() call for "
-              f"part_{args_dict['part']} {t[:-5]}",
+        print(f"  Calling generate_density_maps() for "
+              f"part_{cfg.dataset.part} {t[:-5]}:",
               flush=True)
-
+        
         dmaps_dict = generate_density_maps(
             bn2points_dict,
             imgs_dir,
-            args_dict)
-
-        npz_name = f"density_maps_part_{args_dict['part']}_{t[:-5]}.npz"
+            cfg)
+        
+        npz_name = f"density_maps_part_{cfg.dataset.part}_{t[:-5]}.npz"
+        print(f"  Saving the file {npz_name}")
         np.savez(npz_name, **dmaps_dict)
 
         if t == 'test_data':
-            xhp_dmaps_dict = xhp_density_maps(args_dict['xhp_dir'])
-            compare_to_xhp_dmaps(dmaps_dict, xhp_dmaps_dict, args_dict)
+            xhp_dmaps_dict = xhp_density_maps(cfg.dataset.xhp_gt_dmaps_dir)
+            compare_to_xhp_dmaps(dmaps_dict, xhp_dmaps_dict, cfg.dataset.part)
+
+
+if __name__ == "__main__":
+    main()
