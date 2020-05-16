@@ -247,12 +247,14 @@ def xhp_density_maps(xhp_dir):
         return
 
     if not os.path.isdir(xhp_dir):
-        print(f"  directory '{xhp_dir}' not found")
+        print(f"  Directory '{xhp_dir}' (that is expected to contain "
+              f"xhp density maps) not found")
         return
 
     xhp_mat_files = sorted(glob.glob(pjn(xhp_dir, "*.mat")))
     if not xhp_mat_files:
-        print(f"directory '{xhp_dir}' contains no '*.mat' files")
+        print(f"  Directory '{xhp_dir}' (that is expected to contain "
+              f"xhp density maps) contains no '*.mat' files")
         return
 
     xhp_mat_bnames = [
@@ -294,6 +296,8 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, part):
         prefix=f"cmp_dmaps_part_{part}_test_",
         dir=os.getcwd())
 
+    print(f"  The density maps to be visually compared are being saved to "
+          f"{os.path.relpath(abs_path, os.getcwd())}")
     for dm1, (k2, dm2) in zip(my_dmaps_dict.values(), xhp_dmaps_dict.items()):
         skimage.io.imsave(
             pjn(abs_path, f"{k2}_my.png"),

@@ -144,9 +144,9 @@ class TrainManager(object):
         self.optimizer = optimizer
         self.cfg = cfg
         self.add_cfg = additional_cfg
-        self.tbx_wrtr_dir = additional_cfg['tbx_wrtr_dir']
+        self.tbx_wrtr_dir = additional_cfg.get('tbx_wrtr_dir')
         self.orig_cwd = hydra.utils.get_original_cwd()
-        self.tbx_wrtr = additional_cfg['tbx_wrtr']
+        self.tbx_wrtr = additional_cfg.get('tbx_wrtr')
 
     def validate(self, data_loader, step=0):
         """
@@ -321,8 +321,8 @@ def main(cfg):
 
     if cfg.train.pretrained_ckpt:
         print(f"  Using pretrained model and its checkpoint "
-              f"'{os.path.relpath(cfg.train.pretrained_ckpt, orig_cwd)}'")
-        loaded_struct = torch.load(cfg.train.pretrained_ckpt)
+              f"'{cfg.train.pretrained_ckpt}'")
+        loaded_struct = torch.load(pjn(orig_cwd, cfg.train.pretrained_ckpt))
         model.load_state_dict(loaded_struct['model_state_dict'], strict=True)
     
     additional_cfg = {'device': None}

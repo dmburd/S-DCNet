@@ -41,3 +41,6 @@ validation:
   
 test:
   batch_size: 1
+  trained_ckpt_for_inference: ""
+  visualize: True
+  imgs_for_inference_dir: ""

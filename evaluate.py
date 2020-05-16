@@ -5,6 +5,8 @@ from sys import exit as e
 import os
 import os.path
 from os.path import join as pjn
+import hydra
+from tqdm import tqdm
 import q
 import numpy as np
 import torch
@@ -20,28 +22,7 @@ from SDCNet import SDCNet
 import train
 
 
-def update_parser_for_arguments(parser_from_train):
-    """
-    Add a few arguments to the passed ArgumentParser() object 
-    and return the modified object.
-    """
-    parser_from_train.add_argument(
-        '--checkpoint', metavar='CKPT_PATH',
-        type=str,
-        default=None,
-        help="path (required) to the checkpoint to be evaluated"
-             "(default: None)")
-
-    parser_from_train.add_argument(
-        '--visualize', metavar='{yes|no}',
-        type=train.str2bool,
-        default=False,
-        help="visualize the predictions on a test set (default: no)")
-
-    return parser_from_train
-
-
-def visualize_predictions(model, data_loader, vis_dir):
+def visualize_predictions(cfg, model, data_loader, vis_dir):
     """
     Visualize model predictions by running inference on the samples and
     create (and save to disk) compound images that contain the original
@@ -50,6 +31,7 @@ def visualize_predictions(model, data_loader, vis_dir):
     for 16x16 patches).
 
     Args:
+        cfg: the global configuration (hydra).
         model: the model to be run on the provided samples.
         data_loader: DataLoader object that provides samples.
         vis_dir: path to the directory where the compound images will be 
@@ -65,13 +47,13 @@ def visualize_predictions(model, data_loader, vis_dir):
         os.mkdir(vis_dir)
 
     model.eval()
-    rgb_mean_train = dtst.calc_rgb_mean_train(args_dict)
+    rgb_mean_train = dtst.calc_rgb_mean_train(cfg)
     rgb_mean_train = rgb_mean_train[:, np.newaxis, np.newaxis]
 
-    for sample in data_loader:
+    for sample in tqdm(data_loader):
         gt_count = sample['dmap'].numpy().sum()
         image_normd = sample['image'].float().to('cuda')
-        cls0_logits, cls1_logits, cls2_logits, DIV2 = model(image_normd)
+        *cls_logits_list, DIV2, U1, U2, W1, W2 = model(image_normd)
         pred_count_16x16_blocks = DIV2.cpu().detach().numpy()
         pred = pred_count_16x16_blocks.squeeze(0).squeeze(0)
         pred_count = pred.sum()
@@ -99,7 +81,9 @@ def visualize_predictions(model, data_loader, vis_dir):
         fs = (fs_w, fs_h)
         fig, axs = plt.subplots(figsize=fs, dpi=dpi, ncols=2)
         axs[0].imshow(image, vmin=0, vmax=255)
-        axs[0].set_title(f"Ground truth total count = {gt_count:.1f}")
+        axs[0].set_title(
+            f"{bname + '.jpg'} (ShanghaiTech part_{cfg.dataset.part})\n"
+            f"Ground truth total count = {gt_count:.1f}")
         extent = (0, w, 0, h)
         axs[1].imshow(image_bleached, vmin=0, vmax=255, extent=extent)
         pred_im = axs[1].imshow(
@@ -109,7 +93,7 @@ def visualize_predictions(model, data_loader, vis_dir):
         axs[1].set_title(
             f"Predicted total count = {pred_count:.1f}\n"
             f"(error = {pred_count - gt_count:+.1f}, "
-            f"relative error = {rel_err_percent:+.1f}%%)")
+            f"relative error = {rel_err_percent:+.1f}%)")
         divider = make_axes_locatable(axs[1])
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig.colorbar(pred_im, cax=cax)
@@ -118,34 +102,46 @@ def visualize_predictions(model, data_loader, vis_dir):
         plt.close(fig)
 
 
-def main(args_dict):
-    print(f"  Evaluating the checkpoint '{args_dict['checkpoint']}'")
-    loaded_struct = torch.load(args_dict['checkpoint'])
-
-    args_dict.update(loaded_struct['args_dict_copy'])
-    args_dict.update(train_val_split=1.0)
+@hydra.main(config_path="conf/config_train_val_test.yaml")
+def main(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    print(f"  Evaluating the checkpoint "
+          f"'{cfg.test.trained_ckpt_for_inference}'")
+    loaded_struct = torch.load(
+        pjn(orig_cwd, cfg.test.trained_ckpt_for_inference))
+    
+    cfg.train.train_val_split = 1.0
     # ^ associate all of the train data with the train_loader below
     #   (do not split the train data into train + validation)
-    train_loader, val_loader, test_loader = \
-        train.get_dataloaders(args_dict, (1, 0, 1))
+    train_loader, _, test_loader = train.get_dataloaders(cfg, (1, 0, 1))
 
-    interval_bounds, label2count_list = make_label2count_list(args_dict)
-    model = SDCNet(label2count_list, load_pretr_weights_vgg=False)
+    interval_bounds, label2count_list = make_label2count_list(cfg)
+    model = SDCNet(
+        label2count_list,
+        cfg.model.supervised,
+        load_pretr_weights_vgg=False)
     model.load_state_dict(loaded_struct['model_state_dict'], strict=True)
-    model = model.cuda()
+
+    additional_cfg = {'device': None}
+    if not cfg.resources.disable_cuda and torch.cuda.is_available():
+        additional_cfg['device'] = torch.device('cuda')
+        model = model.cuda()
+    else:
+        additional_cfg['device'] = torch.device('cpu')
 
     optimizer = None
 
     trainer = train.TrainManager(
         model,
         optimizer,
-        args_dict,
+        cfg,
+        additional_cfg,
         train_loader=None,
         val_loader=None,
     )
 
     print()
-    datadir = pjn(args_dict['dataset_rootdir'], f"part_{args_dict['part']}")
+    datadir = pjn(cfg.dataset.dataset_rootdir, f"part_{cfg.dataset.part}")
     print(f"  Evaluating on the (whole) train data and on the test data "
           f"(in '{datadir}')")
 
@@ -157,27 +153,12 @@ def main(args_dict):
     print(f"  Metrics on the test data:          "
           f"MAE: {mae_test:.2f}, MSE: {mse_test:.2f}")
 
-    if args_dict['visualize']:
-        visualize_predictions(
-            model,
-            test_loader,
-            f"visualized_part_{args_dict['part']}_test_set_predictions")
+    if cfg.test.visualize:
+        vis_dir_name = f"visualized_part_{cfg.dataset.part}_test_set_predictions"
+        vis_dir_print = pjn(os.path.relpath(os.getcwd(), orig_cwd), vis_dir_name)
+        print(f"  Visualized predictions are being saved to '{vis_dir_print}':")
+        visualize_predictions(cfg, model, test_loader, vis_dir_name)
 
 
 if __name__ == "__main__":
-    """
-    `parser_for_arguments()` from 'train.py' is used.
-    It means that this script supports all command line arguments that
-    'train.py' supports (plus '--checkpoint' argument added by the function
-    `update_parser_for_arguments()` in this file).
-
-    Typically, all parameters required for restoring the model are obtained
-    from 'args_dict_copy' field of the struct loaded from the provided
-    checkpoint.
-    """
-    parser_from_train = train.parser_for_arguments()
-    update_parser_for_arguments(parser_from_train)
-    args = parser_from_train.parse_args()
-
-    args_dict = vars(args)
-    main(args_dict)
+    main()
