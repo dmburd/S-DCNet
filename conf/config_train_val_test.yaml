@@ -8,7 +8,7 @@ dataset:
   dataset_rootdir: './ShanghaiTech'
 
 model:
-  supervised: False
+  supervised: True
   # ^ True for the Supervised S-DCNet (SS-DCNet)
   #   False for the older version (unsupervised, ordinary S-DCNet)
   interval_step: 0.5
@@ -22,6 +22,7 @@ train:
   #   fraction (1 - train_val_split) of the training set is used for validation
   batch_size: 1
   pretrained_ckpt: ""
+  # ^ checkpoint of a pretrained model to start with
   num_epochs: 1000
   start_epoch: 1
   # ^ manually set idx for the starting epoch (useful on restarts)
@@ -42,5 +43,5 @@ validation:
 test:
   batch_size: 1
   trained_ckpt_for_inference: ""
-  visualize: True
+  visualize: False
   imgs_for_inference_dir: ""
