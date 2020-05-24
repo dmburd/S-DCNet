@@ -18,3 +18,6 @@ one_headpoint_dmap:
   # ^ Gaussian's sigma = sigma_coef * knn_avg_dist
   sqr_side: 40
   # ^ Gaussian values are set to 0.0 outside of [-sqr_side/2, +sqr_side/2]
+
+resources:
+  num_proc: 8

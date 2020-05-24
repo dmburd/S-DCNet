@@ -13,6 +13,7 @@ import hydra
 import tempfile
 import time
 from tqdm import tqdm
+from multiprocessing import Process, Manager
 
 import skimage
 import skimage.io
@@ -123,7 +124,11 @@ def get_one_head_gaussian(side_len, r, sigma):
     return one_head_gaussian
 
 
-def generate_density_maps(basename2headpoints_dict, imgs_dir, cfg):
+def generate_density_maps(
+        basename2headpoints_dict_part,
+        basename2dmap_dict,
+        imgs_dir,
+        cfg):
     """
     Generate the density maps. They are the sums of normalized Gaussian
     functions centered at the people's head points.
@@ -148,24 +153,22 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, cfg):
     equal to the number of annotated heads.
 
     Args:
-        basename2headpoints_dict: Dictionary containing the mapping between
-            basenames and 2d headpoints numpy ndarrays
+        basename2headpoints_dict_part: Part of the dictionary containing 
+            the mapping between basenames and 2d headpoints numpy ndarrays
             (returned by get_headpoints_dict()).
+        basename2dmap_dict: Dictionary that will be filled with the mapping
+            between the basenames and density maps (each density map has
+            the same height and width as the corresponding image).
         imgs_dir: Directory containing images (only their width and hight
             values are needed).
         cfg: the global configuration (hydra).
 
     Returns:
-        basename2dmap_dict: Dictionary containing the mapping between the 
-        basenames and density maps (each density map has the same height 
-        and width as the corresponding image).
     """
     side_len = cfg.one_headpoint_dmap.sqr_side
     r = 1 + side_len // 2
 
-    basename2dmap_dict = OrderedDict()
-
-    for bn, points in tqdm(basename2headpoints_dict.items()):
+    for bn, points in basename2headpoints_dict_part.items():
         img_fpath = pjn(imgs_dir, bn[3:] + '.jpg')
         # bn[3:] means skipping the initial 'GT_' from the basename
         w, h = Image.open(img_fpath).size
@@ -227,8 +230,39 @@ def generate_density_maps(basename2headpoints_dict, imgs_dir, cfg):
         # if dmap is normalized by np.sum(one_head_gaus_subset).
         # It will not hold if dmap is normalized by np.sum(one_head_gaussian).
 
-    return basename2dmap_dict
 
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+    
+
+def generate_density_maps_paral(basename2headpoints_dict, imgs_dir, cfg):
+    basenames = list(basename2headpoints_dict.keys())
+    random.shuffle(basenames)
+    
+    chunk_size = int(math.ceil(len(basenames) / cfg.resources.num_proc))
+    basenames_chunks = chunks(basenames, chunk_size)
+    
+    manager = Manager()
+    basename2dmap_dict = manager.dict()
+    procs = []
+    
+    for basenames_chunk in basenames_chunks:
+        bn2hp_dict_part = {
+            bn: basename2headpoints_dict[bn] for bn in basenames_chunk}
+        p = Process(
+            target=generate_density_maps, 
+            args=(bn2hp_dict_part, basename2dmap_dict, imgs_dir, cfg)
+        )
+        p.start()
+        procs.append(p)
+    
+    for p in procs:
+        p.join()
+    
+    return basename2dmap_dict
+    
 
 def xhp_density_maps(xhp_dir):
     """
@@ -268,7 +302,7 @@ def xhp_density_maps(xhp_dir):
     return bname2dmap_dict
 
 
-def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, part):
+def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, cfg):
     """
     Compare the density maps obtained by generate_density_maps() with the
     density maps from the official repository.
@@ -279,7 +313,7 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, part):
             the calling generate_density_maps().
         xhp_dmaps_dict: basenames <-> density maps mapping from the official
             repository.
-        part: ShanghaiTech dataset part ('A' or 'B').
+        cfg: the global configuration (hydra).
 
     Returns:
         None.
@@ -287,24 +321,55 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, part):
     if not xhp_dmaps_dict:
         return
 
+    my_dmaps_dict_keys = sorted(list(my_dmaps_dict.keys()))
+    xhp_dmaps_dict_keys = sorted(list(xhp_dmaps_dict.keys()))
+    a = (len(my_dmaps_dict_keys) == len(xhp_dmaps_dict_keys))
+    assert a, "image and ground truth file basenames are not consistent"
     a = all([k1 == 'GT_' + k2
-             for k1, k2 in zip(my_dmaps_dict.keys(), xhp_dmaps_dict.keys())])
+             for k1, k2 in zip(my_dmaps_dict_keys, xhp_dmaps_dict_keys)])
     assert a, "image and ground truth file basenames are not consistent"
 
     abs_path = tempfile.mkdtemp(
         suffix=None,
-        prefix=f"cmp_dmaps_part_{part}_test_",
+        prefix=f"cmp_dmaps_part_{cfg.dataset.part}_test_",
         dir=os.getcwd())
 
     print(f"  The density maps to be visually compared are being saved to "
           f"{os.path.relpath(abs_path, os.getcwd())}")
-    for dm1, (k2, dm2) in zip(my_dmaps_dict.values(), xhp_dmaps_dict.items()):
-        skimage.io.imsave(
-            pjn(abs_path, f"{k2}_my.png"),
-            (dm1 / np.max(dm1) * 255).astype(np.uint8))
-        skimage.io.imsave(
-            pjn(abs_path, f"{k2}_xhp.png"),
-            (dm2 / np.max(dm2) * 255).astype(np.uint8))
+    
+    def func(
+            my_dmaps_dict_keys,
+            xhp_dmaps_dict_keys,
+            my_dmaps_dict,
+            xhp_dmaps_dict,
+            abs_path):
+        for my_k, xhp_k in zip(my_dmaps_dict_keys, xhp_dmaps_dict_keys):
+            dm1 = my_dmaps_dict[my_k]
+            dm2 = xhp_dmaps_dict[xhp_k]
+            skimage.io.imsave(
+                pjn(abs_path, f"{xhp_k}_my.png"),
+                (dm1 / np.max(dm1) * 255).astype(np.uint8))
+            skimage.io.imsave(
+                pjn(abs_path, f"{xhp_k}_xhp.png"),
+                (dm2 / np.max(dm2) * 255).astype(np.uint8))
+
+    chunk_size = int(math.ceil(
+        len(my_dmaps_dict_keys) / cfg.resources.num_proc))
+    my_dmaps_dict_keys_chunks = chunks(my_dmaps_dict_keys, chunk_size)
+    xhp_dmaps_dict_keys_chunks = chunks(xhp_dmaps_dict_keys, chunk_size)
+    
+    procs = []
+    zipped_chunks = zip(my_dmaps_dict_keys_chunks, xhp_dmaps_dict_keys_chunks)
+    for ch1, ch2 in zipped_chunks:
+        p = Process(
+            target=func, 
+            args=(ch1, ch2, my_dmaps_dict, xhp_dmaps_dict, abs_path)
+        )
+        p.start()
+        procs.append(p)
+    
+    for p in procs:
+        p.join()
 
 
 @hydra.main(config_path="conf/config_density_maps.yaml")
@@ -320,14 +385,17 @@ def main(cfg):
 
         bn2points_dict = get_headpoints_dict(annot_dir)
 
-        print(f"  Calling generate_density_maps() for "
-              f"part_{cfg.dataset.part} {t[:-5]}:",
+        print(f"  Calling generate_density_maps_paral() for "
+              f"part_{cfg.dataset.part} {t[:-5]}... ",
+              end='',
               flush=True)
-        
-        dmaps_dict = generate_density_maps(
+
+        dmaps_dict = generate_density_maps_paral(
             bn2points_dict,
             imgs_dir,
             cfg)
+
+        print(f"Done")
         
         npz_name = f"density_maps_part_{cfg.dataset.part}_{t[:-5]}.npz"
         print(f"  Saving the file {npz_name}")
@@ -335,7 +403,7 @@ def main(cfg):
 
         if t == 'test_data':
             xhp_dmaps_dict = xhp_density_maps(cfg.dataset.xhp_gt_dmaps_dir)
-            compare_to_xhp_dmaps(dmaps_dict, xhp_dmaps_dict, cfg.dataset.part)
+            compare_to_xhp_dmaps(dmaps_dict, xhp_dmaps_dict, cfg)
 
 
 if __name__ == "__main__":
