@@ -77,7 +77,7 @@ python gen_density_maps.py \
 # and/or similarly for part_A
 ```
 
-Directories with the names `cmp_dmaps_part_{A|B}_test_<some_random_string>` will appear in the current directory. Each of them contains pairs of images named `IMG_<N>_my.png` / `IMG_<N>_xhp.png`.
+Directory named `cmp_dmaps_part_{A|B}_test_<some_random_string>` containing pairs of images (named `IMG_<N>_my.png` / `IMG_<N>_xhp.png`) will be created.
 
 
 ## Training
@@ -147,7 +147,7 @@ python inference.py \
     test.visualize=True
 ```
 
-where `./dir_for_inference_B` folder contains the input images. The visualized predictions will be placed to the newly-created `outputs/<date>/<time>/visualized_predictions` subdirectory. Also, the image file names and corresponding total count values will be printed to stdout.
+where `./dir_for_inference_B` folder contains the input images. The visualized predictions will be placed to the newly-created directory `outputs/<date2>/<time2>/visualized_predictions`. Also, the image file names and corresponding total count values will be printed to stdout.
 
 
 ## References
