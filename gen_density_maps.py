@@ -390,10 +390,15 @@ def main(cfg):
               end='',
               flush=True)
 
-        dmaps_dict = generate_density_maps_paral(
-            bn2points_dict,
-            imgs_dir,
-            cfg)
+        if cfg.resources.num_proc == 1:
+            # single-process mode for debugging
+            dmaps_dict = {}
+            generate_density_maps(bn2points_dict, dmaps_dict, imgs_dir, cfg)
+        else:
+            dmaps_dict = generate_density_maps_paral(
+                bn2points_dict,
+                imgs_dir,
+                cfg)
 
         print(f"Done")
         
