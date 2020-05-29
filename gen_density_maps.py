@@ -360,16 +360,20 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, cfg):
     
     procs = []
     zipped_chunks = zip(my_dmaps_dict_keys_chunks, xhp_dmaps_dict_keys_chunks)
-    for ch1, ch2 in zipped_chunks:
-        p = Process(
-            target=func, 
-            args=(ch1, ch2, my_dmaps_dict, xhp_dmaps_dict, abs_path)
-        )
-        p.start()
-        procs.append(p)
     
-    for p in procs:
-        p.join()
+    if True: #cfg.resources.num_proc == 1:
+        for ch1, ch2 in zipped_chunks:
+            func(ch1, ch2, my_dmaps_dict, xhp_dmaps_dict, abs_path)
+    else:
+        for ch1, ch2 in zipped_chunks:
+            p = Process(
+                target=func, 
+                args=(ch1, ch2, my_dmaps_dict, xhp_dmaps_dict, abs_path)
+            )
+            p.start()
+            procs.append(p)
+        for p in procs:
+            p.join()
 
 
 @hydra.main(config_path="conf/config_density_maps.yaml")
