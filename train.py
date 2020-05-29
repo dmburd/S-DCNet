@@ -37,8 +37,8 @@ def print_dbg_info_dataloader(loader):
               f"image shape = {tuple(sample['image'].shape)}")
         cs = sample['counts_gt']
         ls = sample['labels_gt']
-        print(f"counts_gt shapes = {tuple(l.shape) for l in cs}; "
-              f"labels_gt shapes = {tuple(l.shape) for l in ls}")
+        print(f"counts_gt shapes = {[tuple(l.shape) for l in cs]}; "
+              f"labels_gt shapes = {[tuple(l.shape) for l in ls]}")
         print()
 
 
