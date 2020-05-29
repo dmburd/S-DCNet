@@ -19,7 +19,7 @@ All of the scripts intended to be run by user (`gen_density_maps.py`, `train.py`
 
 
 ## Datasets
-Download the ShanghaiTech dataset using the links from [this repo](https://github.com/desenzhou/ShanghaiTechDataset) or [from kaggle](https://www.kaggle.com/search?q=ShanghaiTech+in%3Adatasets). After unpacking the archive, you will have the following directory structure:
+Download the ShanghaiTech dataset using the links from [this repo](https://github.com/desenzhou/ShanghaiTechDataset) or [from kaggle](https://www.kaggle.com/tthien/shanghaitech). After unpacking the archive, you will have the following directory structure:
 
 ```
 ./
