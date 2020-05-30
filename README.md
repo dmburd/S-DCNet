@@ -150,6 +150,18 @@ python inference.py \
 where `./dir_for_inference_B` folder contains the input images. The visualized predictions will be placed to the newly-created directory `outputs/<date2>/<time2>/visualized_predictions`. Also, the image file names and corresponding total count values will be printed to stdout.
 
 
+## Export
+To try to export a checkpoint to `ONNX`, 'torch jit trace' and 'torch jit script' formats, run a command like this:
+
+```Shell
+python export.py \
+    dataset=ShanghaiTech_part_B \
+    test.trained_ckpt_for_inference=./outputs/<date>/<time>/checkpoints/epoch_<N>.pth
+```
+
+The generated files will be placed to the newly-created directory `outputs/<date3>/<time3>/`.
+
+
 ## References
 The exact references to the original S-DCNet and SS-DCNet papers are, respectively,
 

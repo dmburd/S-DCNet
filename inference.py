@@ -7,7 +7,6 @@ import os.path
 from os.path import join as pjn
 import hydra
 import q
-from tqdm import tqdm
 import skimage
 import skimage.io
 import numpy as np
@@ -21,7 +20,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from labels_counts_utils import make_label2count_list
 import ShanghaiTech_dataset as dtst
 from SDCNet import SDCNet
-import train
 
 
 def get_predictions(cfg, model):
@@ -108,8 +106,8 @@ def main(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
     print(f"  Running inference using checkpoint "
           f"'{cfg.test.trained_ckpt_for_inference}'")
-    loaded_struct = torch.load(
-        pjn(orig_cwd, cfg.test.trained_ckpt_for_inference))
+    ckpt_path = pjn(orig_cwd, cfg.test.trained_ckpt_for_inference)
+    loaded_struct = torch.load(ckpt_path)
 
     interval_bounds, label2count_list = make_label2count_list(cfg)
     model = SDCNet(
