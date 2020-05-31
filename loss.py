@@ -14,7 +14,7 @@ def counter_loss(gt_cls_labels_list, pred_cls_logits_list):
     for gt_cls_i_labels, pred_cls_i_logits in gt_pred_pairs:
         t = nn.CrossEntropyLoss()(
             pred_cls_i_logits,
-            gt_cls_i_labels.to(pred_cls_i_logits.device))
+            gt_cls_i_labels.to(device=pred_cls_i_logits.device, dtype=torch.long))
         cross_entropy_loss_terms.append(t)
 
     return cross_entropy_loss_terms
