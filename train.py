@@ -104,7 +104,7 @@ def get_dataloaders(cfg, train_val_test_mask):
             rel_inds=(cfg.train.train_val_split, 1.0),
             transform=composed_transf_test)
         val_loader = DataLoader(
-            train_dataset,
+            val_dataset,
             batch_size=cfg.validation.batch_size,
             shuffle=False,
             num_workers=4)
