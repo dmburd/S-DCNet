@@ -221,7 +221,8 @@ def generate_density_maps(
             # seems that xhp uses division by np.sum(one_head_gaussian) ^ here
             # instead of np.sum(one_head_gaus_subset)!
 
-        basename2dmap_dict[bn] = dmap
+        basename2dmap_dict[f"{bn}/density_map"] = dmap
+        basename2dmap_dict[f"{bn}/num_annot_headpoints"] = points.shape[0]
         #print(np.sum(dmap), points.shape[0])
         integral_eq_annot_num = (int(round(np.sum(dmap))) == points.shape[0])
         #assert integral_eq_annot_num

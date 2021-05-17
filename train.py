@@ -161,7 +161,7 @@ class TrainManager(object):
 
         with torch.no_grad():
             for sample in data_loader:
-                gt_count = sample['dmap'].numpy().sum()
+                gt_count = float(sample['num_annot_headpoints'].numpy())
                 image = sample['image'].float().to(self.add_cfg['device'])
                 *cls_logits_list, DIV2, U1, U2, W1, W2 = self.model(image)
                 pred_count = DIV2.cpu().numpy().sum()

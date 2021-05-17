@@ -121,7 +121,8 @@ class ShanghaiTechDataset(Dataset):
               flush=True)
 
         dmaps_dict = np.load(npz_file)
-        tot_num_samples = len(dmaps_dict)
+        img_bnames = list({k.split('/')[0] for k in dmaps_dict.keys()})
+        tot_num_samples = len(img_bnames)
         i_init = int(rel_inds[0] * tot_num_samples)
         i_fin = int(rel_inds[1] * tot_num_samples)
 
@@ -130,7 +131,7 @@ class ShanghaiTechDataset(Dataset):
               flush=True)
 
         annot_bnames = sorted(
-            list(dmaps_dict.keys()),
+            img_bnames,
             key=lambda nm: int(nm[7:])
         )
         if shuffle_seed:
@@ -141,6 +142,7 @@ class ShanghaiTechDataset(Dataset):
         self.img_bname_list = []
         self.img_np_list = []
         self.dmap_list = []
+        self.num_annot_headpoints_list = []
 
         print(f"  Filling the Dataset object (reading the images)... ",
               end='',
@@ -148,8 +150,11 @@ class ShanghaiTechDataset(Dataset):
         for annot_bname in annot_bnames_selected:
             self.img_bname_list.append(annot_bname[3:])
             #
-            dmap = dmaps_dict[annot_bname]
+            dmap = dmaps_dict[f"{annot_bname}/density_map"]
             self.dmap_list.append(dmap.astype(np.float32))
+            #
+            num_annot_headpoints = dmaps_dict[f"{annot_bname}/num_annot_headpoints"]
+            self.num_annot_headpoints_list.append(num_annot_headpoints.astype(np.float32))
             #
             img_fpath = pjn(self.imgs_dir, annot_bname[3:] + '.jpg')
             img_np = np.array(skimage.io.imread(img_fpath))
@@ -187,6 +192,8 @@ class ShanghaiTechDataset(Dataset):
             'dmap': self.dmap_list[idx],
             # ^ shape (h, w) (for example (768, 1024))
             #   (batching: leading dimension 1 added)
+            'num_annot_headpoints': self.num_annot_headpoints_list[idx],
+            # ^ shape () (a single scalar, the total number of annotated heads)
         }
         if self.transform:
             sample = self.transform(sample)
@@ -212,6 +219,7 @@ class Normalize(object):
             # ^ normalized values in a range like [-0.5; +0.5]
             #   shape (h, w, 3)
             'dmap': sample['dmap'],
+            'num_annot_headpoints': sample['num_annot_headpoints'],
         }
 
 
@@ -229,6 +237,7 @@ class ToCHW(object):
             # ^ shape (3, h, w)
             'dmap': sample['dmap'],
             # ^ shape (h, w)
+            'num_annot_headpoints': sample['num_annot_headpoints'],
         }
 
 
@@ -255,6 +264,7 @@ class RandomHorizontalFlip(object):
                 # 2 (the 2nd arg to np.flip()) is the width dimension here ^
                 'dmap': np.flip(sample['dmap'], 1).copy(),
                 # 1 (the 2nd arg to np.flip()) is the width dimension here ^
+                'num_annot_headpoints': sample['num_annot_headpoints'],
             }
         return sample
 
@@ -305,6 +315,7 @@ class QuasiRandomCrop(object):
             # ^ shape (3, h_half, w_half)
             'dmap': sample['dmap'][h1:h2, w1:w2],
             # ^ shape (h_half, w_half)
+            'num_annot_headpoints': sample['num_annot_headpoints'],
         }
 
 
@@ -345,6 +356,7 @@ class PadToMultipleOf64(object):
             # ^ shape (3, h_pd, w_pd)
             'dmap': dmap_pd,
             # ^ shape (h_pd, w_pd)
+            'num_annot_headpoints': sample['num_annot_headpoints'],
         }
 
 
@@ -390,6 +402,7 @@ class AddGtCountsLabels(object):
             'image_bname': sample['image_bname'],
             'image': sample['image'],
             'dmap': sample['dmap'],
+            'num_annot_headpoints': sample['num_annot_headpoints'],
             'counts_gt': counts_gt,
             'labels_gt': labels_gt,
         }

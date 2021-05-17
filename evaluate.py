@@ -51,7 +51,7 @@ def visualize_predictions(cfg, model, data_loader, vis_dir):
     rgb_mean_train = rgb_mean_train[:, np.newaxis, np.newaxis]
 
     for sample in tqdm(data_loader):
-        gt_count = sample['dmap'].numpy().sum()
+        gt_count = float(sample['num_annot_headpoints'].numpy())
         image_normd = sample['image'].float().to('cuda')
         *cls_logits_list, DIV2, U1, U2, W1, W2 = model(image_normd)
         pred_count_16x16_blocks = DIV2.cpu().detach().numpy()
@@ -110,10 +110,10 @@ def main(cfg):
     loaded_struct = torch.load(
         pjn(orig_cwd, cfg.test.trained_ckpt_for_inference))
     
-    cfg.train.train_val_split = 1.0
-    # ^ associate all of the train data with the train_loader below
+    cfg.train.train_val_split = 0.0
+    # ^ associate all of the train data with the val_loader below
     #   (do not split the train data into train + validation)
-    train_loader, _, test_loader = train.get_dataloaders(cfg, (1, 0, 1))
+    _, val_loader, test_loader = train.get_dataloaders(cfg, (0, 1, 1))
 
     interval_bounds, label2count_list = make_label2count_list(cfg)
     model = SDCNet(
@@ -145,7 +145,7 @@ def main(cfg):
     print(f"  Evaluating on the (whole) train data and on the test data "
           f"(in '{datadir}')")
 
-    mae_train, mse_train = trainer.validate(train_loader)
+    mae_train, mse_train = trainer.validate(val_loader)
     print(f"  Metrics on the (whole) train data: "
           f"MAE: {mae_train:.2f}, MSE: {mse_train:.2f}")
 

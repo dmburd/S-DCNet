@@ -110,24 +110,24 @@ You will get an output like this for part_A:
 
 ```
 Evaluating on the (whole) train data and on the test data (in ./ShanghaiTech/part_A)
-Metrics on the (whole) train data: MAE: 5.67, MSE: 23.08
-Metrics on the test data:          MAE: 60.96, MSE: 104.73
+Metrics on the (whole) train data: MAE: 21.52, MSE: 64.51
+Metrics on the test data:          MAE: 61.16, MSE: 105.23
 ```
 
 or like this for part_B:
 
 ```
 Evaluating on the (whole) train data and on the test data (in ./ShanghaiTech/part_B)
-Metrics on the (whole) train data: MAE: 1.13, MSE: 2.79
-Metrics on the test data:          MAE: 7.44, MSE: 12.70
+Metrics on the (whole) train data: MAE: 4.84, MSE: 8.61
+Metrics on the test data:          MAE: 8.22, MSE: 13.65
 ```
 
 The error values shown above were obtained after training on a machine from vast.ai, so the training time was limited. The error values are higher than that reported in the [original paper](https://arxiv.org/abs/2001.01886) for SS-DCNet C-Counter (MAE = 56.1, MSE = 88.9 for part_A test set; MAE = 6.6, MSE = 10.8 for part_B test set).
 
 |       dataset            |  MAE  |  MSE   | checkpoint |
 | :----------------------: | :---: | :----: | :-----------------: | 
-| ShanghaiTech part A test | 60.96 | 104.73 | [link_A](https://mega.nz/file/GBEimC5K#jJbkkM_L60zhB24FG-DxYs0WVQfvhrGnWK802cl5Drc) |
-| ShanghaiTech part B test |  7.44 |  12.70 | [link_B](https://mega.nz/file/ONESWACZ#HszUrOWa7wIfIGKuTjz-sEgwC1VESGvQavQpOZ4bK9Y) |
+| ShanghaiTech part A test | 61.16 | 105.23 | [link_A](https://mega.nz/file/GBEimC5K#jJbkkM_L60zhB24FG-DxYs0WVQfvhrGnWK802cl5Drc) |
+| ShanghaiTech part B test |  8.22 |  13.65 | [link_B](https://mega.nz/file/ONESWACZ#HszUrOWa7wIfIGKuTjz-sEgwC1VESGvQavQpOZ4bK9Y) |
 
 You can visualize the predictions of a model on a test set by adding `test.visualize=True` to the evaluation script command line. Combined images showing the ground truth counts, predicted counts, absolute / relative errors and coarse-grained density maps will be placed to a folder named `outputs/<date>/<time>/visualized_part_{A|B}_test_set_predictions/`.
 
