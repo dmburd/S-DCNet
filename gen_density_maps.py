@@ -377,7 +377,7 @@ def compare_to_xhp_dmaps(my_dmaps_dict, xhp_dmaps_dict, cfg):
             p.join()
 
 
-@hydra.main(config_path="conf/config_density_maps.yaml")
+@hydra.main(config_path="conf", config_name="config_density_maps.yaml")
 def main(cfg):
     for t in ['train_data', 'test_data']:
         the_dir = pjn(

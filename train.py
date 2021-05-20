@@ -304,7 +304,7 @@ class TrainManager(object):
         torch.save(d, fpath)
 
 
-@hydra.main(config_path="conf/config_train_val_test.yaml")
+@hydra.main(config_path="conf", config_name="config_train_val_test.yaml")
 def main(cfg):
     """
     Create data loaders, the model instance, optimizer and TrainManager()

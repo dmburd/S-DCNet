@@ -102,7 +102,7 @@ def visualize_predictions(cfg, model, data_loader, vis_dir):
         plt.close(fig)
 
 
-@hydra.main(config_path="conf/config_train_val_test.yaml")
+@hydra.main(config_path="conf", config_name="config_train_val_test.yaml")
 def main(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
     print(f"  Evaluating the checkpoint "

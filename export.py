@@ -15,7 +15,7 @@ import ShanghaiTech_dataset as dtst
 from SDCNet import SDCNet
 
 
-@hydra.main(config_path="conf/config_train_val_test.yaml")
+@hydra.main(config_path="conf", config_name="config_train_val_test.yaml")
 def main(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
     print(f"  Exporting the checkpoint "

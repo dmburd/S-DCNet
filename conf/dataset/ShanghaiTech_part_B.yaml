@@ -1,12 +1,12 @@
-dataset:
-  part: 'B'
-  densmaps_gt_npz: './density_maps_part_B_*.npz'
-  # ^ shell pattern for the path to the files 
-  #   'density_maps_part_B_{train,test}.npz' 
-  num_intervals: 7
-  # ^ number of intervals for count values
-  #   (authors of S-DCNet use 7 for part_B)
-  xhp_gt_dmaps_dir: ./Test_Data/SH_partB_Density_map/test/gtdens/
-  # ^ path to the dir containing density maps as *.mat files 
-  #   (for part_B test set) from the repo
-  #   github.com/xhp-hust-2018-2011/S-DCNet
+# @package _group_
+part: 'B'
+densmaps_gt_npz: './density_maps_part_B_*.npz'
+# ^ shell pattern for the path to the files 
+#   'density_maps_part_B_{train,test}.npz' 
+num_intervals: 7
+# ^ number of intervals for count values
+#   (authors of S-DCNet use 7 for part_B)
+xhp_gt_dmaps_dir: ./Test_Data/SH_partB_Density_map/test/gtdens/
+# ^ path to the dir containing density maps as *.mat files 
+#   (for part_B test set) from the repo
+#   github.com/xhp-hust-2018-2011/S-DCNet
