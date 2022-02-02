@@ -2,7 +2,7 @@ hydra_core==1.0.6
 hydra==2.5
 tqdm==4.48.2
 q==2.6
-numpy==1.18.5
+numpy==1.21.0
 scipy==1.5.2
 scikit_learn==0.24.2
 matplotlib==3.3.1
