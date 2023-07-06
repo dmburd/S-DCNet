@@ -3,7 +3,7 @@ hydra==2.5
 tqdm==4.48.2
 q==2.6
 numpy==1.21.0
-scipy==1.5.2
+scipy==1.10.0
 scikit_learn==0.24.2
 matplotlib==3.3.1
 torch==1.6.0
