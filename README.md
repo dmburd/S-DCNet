@@ -126,8 +126,8 @@ The error values shown above were obtained after training on a machine from vast
 
 |       dataset            |  MAE  |  MSE   | checkpoint |
 | :----------------------: | :---: | :----: | :-----------------: | 
-| ShanghaiTech part A test | 61.16 | 105.23 | [link_A](https://mega.nz/file/GBEimC5K#jJbkkM_L60zhB24FG-DxYs0WVQfvhrGnWK802cl5Drc) |
-| ShanghaiTech part B test |  8.22 |  13.65 | [link_B](https://mega.nz/file/ONESWACZ#HszUrOWa7wIfIGKuTjz-sEgwC1VESGvQavQpOZ4bK9Y) |
+| ShanghaiTech part A test | 61.16 | 105.23 | [link_A](https://cloud.mail.ru/public/Yuna/hJvbfpzWZ) |
+| ShanghaiTech part B test |  8.22 |  13.65 | [link_B](https://cloud.mail.ru/public/pHfD/TAhkvnEVv) |
 
 You can visualize the predictions of a model on a test set by adding `test.visualize=True` to the evaluation script command line. Combined images showing the ground truth counts, predicted counts, absolute / relative errors and coarse-grained density maps will be placed to a folder named `outputs/<date>/<time>/visualized_part_{A|B}_test_set_predictions/`.
 
